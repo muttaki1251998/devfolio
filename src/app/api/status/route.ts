@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { authEnabled } from "@/auth.config";
 import { envStatus, isConfigured } from "@/lib/env";
 import { pingMongo } from "@/lib/mongo";
 import { getSyncState } from "@/lib/sync";
@@ -17,5 +19,16 @@ export async function GET() {
         : null;
     }
   }
-  return NextResponse.json({ env, mongoOk, configured: isConfigured() && mongoOk, sync });
+  const authOn = authEnabled();
+  const session = authOn ? await auth() : null;
+  const user = session?.user
+    ? { name: session.user.name ?? null, email: session.user.email ?? null }
+    : null;
+  return NextResponse.json({
+    env,
+    mongoOk,
+    configured: isConfigured() && mongoOk,
+    sync,
+    auth: { enabled: authOn, user },
+  });
 }

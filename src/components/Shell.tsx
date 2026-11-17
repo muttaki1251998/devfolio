@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { useJson } from "@/components/useData";
 import type { MetricCounts } from "@/lib/types";
@@ -11,6 +12,7 @@ interface Status {
   mongoOk: boolean;
   env: Record<string, boolean>;
   sync: { lastSyncAt?: string | null; displayName?: string | null } | null;
+  auth?: { enabled: boolean; user: { name: string | null; email: string | null } | null };
 }
 
 interface SummaryLite {
@@ -35,12 +37,22 @@ const NAV = [
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  if (pathname === "/login") return <>{children}</>;
+  return <AppShell>{children}</AppShell>;
+}
+
+function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [status, setStatus] = useState<Status | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/status");
+      if (res.status === 401) {
+        window.location.assign("/login");
+        return;
+      }
       setStatus(await res.json());
     } catch {
       /* server not up yet */
@@ -96,8 +108,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       ? Math.round((100 * Math.max(counts.sentToTesting - counts.qaBounces, 0)) / counts.sentToTesting)
       : null;
 
+  const sessionUser = status?.auth?.enabled ? status.auth.user : null;
   const userName =
-    summary?.settings.userName || status?.sync?.displayName?.split(" ")[0] || "";
+    sessionUser?.name?.split(" ")[0] ||
+    sessionUser?.email?.split("@")[0] ||
+    summary?.settings.userName ||
+    status?.sync?.displayName?.split(" ")[0] ||
+    "";
   const initial = userName ? userName.charAt(0).toUpperCase() : "·";
 
   const badge = (href: string): string | null => {
@@ -188,9 +205,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 {initial}
               </span>
               <span className="min-w-0 truncate text-sm font-medium">{userName || "You"}</span>
-              <button type="button" className="btn-link ml-auto">
-                Log out
-              </button>
+              {sessionUser && (
+                <button
+                  type="button"
+                  className="btn-link ml-auto"
+                  onClick={() => signOut({ redirectTo: "/login" })}
+                >
+                  Log out
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -62,6 +62,17 @@ Open any ticket and visit `https://yourteam.atlassian.net/rest/api/3/issue/TICKE
 - **QA bounces** count every testing → rework transition, by any author, on candidate tickets.
 - Devfolio stores only ticket key, summary, status, type, points and timestamps — no descriptions, comments or attachments.
 
+## Login (optional)
+
+By default Devfolio has no sign-in: anyone who can reach the server sees the dashboard. That is fine on localhost. To put it behind a Google or Microsoft login, set the variables below in `.env.local` and restart. Login turns on only when `AUTH_SECRET` and at least one provider's id and secret are all set; with none of them set, the app behaves exactly as before and the Log out button stays hidden.
+
+1. **AUTH_SECRET**: run `npx auth secret` (or `openssl rand -base64 32`) and paste the result.
+2. **Google**: in the Google Cloud console, create an OAuth client ID (type "Web application"). Add the redirect URI `http://localhost:3000/api/auth/callback/google` (plus your deployed origin if you host it). Set `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`.
+3. **Microsoft**: in the Microsoft Entra admin center, register an app, add a Web redirect URI `http://localhost:3000/api/auth/callback/microsoft-entra-id`, and create a client secret. Set `AUTH_MICROSOFT_ENTRA_ID_ID` (the application/client id) and `AUTH_MICROSOFT_ENTRA_ID_SECRET`. To restrict sign-in to one tenant, also set `AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0`.
+4. **Allowlist**: set `ALLOWED_EMAILS` to a comma-separated list (case-insensitive). If it is unset, only `JIRA_EMAIL` may sign in. Any other account is rejected at the login page, even if it authenticates successfully with the provider.
+
+Only the button for each configured provider is shown. When login is on, every page and API route except `/login` and `/api/auth/*` requires a session.
+
 ## Privacy
 
 Single-user and self-hosted by design. Your Jira credentials live in `.env.local` on your machine; ticket metadata lives in a MongoDB you control. Nothing is sent anywhere else.
