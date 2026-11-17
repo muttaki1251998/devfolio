@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Reveal from "@/components/Reveal";
 import SetupCard from "@/components/SetupCard";
+import TicketLink from "@/components/TicketLink";
 import { useJson, useStatus } from "@/components/useData";
 
 interface TicketRow {
@@ -93,7 +94,7 @@ export default function TicketsPage() {
                       i < shown.length - 1 ? "border-b border-divider" : ""
                     }`}
                   >
-                    <span className="w-[88px] shrink-0 whitespace-nowrap text-sm font-semibold">{r.key}</span>
+                    <TicketLink status={status} ticket={r.key} className="w-[88px] shrink-0 whitespace-nowrap text-sm font-semibold" />
                     <span className="min-w-0 truncate text-sm text-standup">{r.summary}</span>
                     <span className="ml-auto shrink-0 text-[13px] text-muted">
                       {r.storyPoints != null ? `${r.storyPoints} ${r.storyPoints === 1 ? "pt" : "pts"}` : ""}

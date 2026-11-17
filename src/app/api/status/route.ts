@@ -30,5 +30,6 @@ export async function GET() {
     configured: isConfigured() && mongoOk,
     sync,
     auth: { enabled: authOn, user },
+    jiraBaseUrl: process.env.JIRA_BASE_URL?.replace(/\/+$/, "") || null,
   });
 }

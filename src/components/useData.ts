@@ -7,6 +7,12 @@ export interface AppStatus {
   mongoOk: boolean;
   env: Record<string, boolean>;
   sync: { lastSyncAt?: string | null; displayName?: string | null } | null;
+  jiraBaseUrl?: string | null;
+}
+
+/** Browse URL for a ticket on the configured Jira site, or null while status loads. */
+export function ticketUrl(status: AppStatus | null, key: string): string | null {
+  return status?.jiraBaseUrl ? `${status.jiraBaseUrl}/browse/${key}` : null;
 }
 
 /** Fetches JSON and refetches whenever a sync completes. */

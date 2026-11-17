@@ -5,6 +5,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recha
 import CountUp from "@/components/CountUp";
 import Reveal from "@/components/Reveal";
 import SetupCard from "@/components/SetupCard";
+import TicketLink from "@/components/TicketLink";
 import { useJson, useStatus } from "@/components/useData";
 import type { EventRow, MetricCounts } from "@/lib/types";
 
@@ -169,7 +170,9 @@ export default function DashboardPage() {
                   >
                     {EVENT_LABEL[r.type]}
                   </td>
-                  <td className="whitespace-nowrap py-3.5 pr-6 font-semibold">{r.ticketKey}</td>
+                  <td className="whitespace-nowrap py-3.5 pr-6 font-semibold">
+                    <TicketLink status={status} ticket={r.ticketKey} />
+                  </td>
                   <td className="max-w-sm truncate py-3.5 pr-6 text-standup">{r.summary}</td>
                   <td className="py-3.5 pr-6 text-right text-muted">{r.storyPoints ?? "—"}</td>
                   <td className="whitespace-nowrap py-3.5 text-right text-muted">{whenLabel(r.at)}</td>

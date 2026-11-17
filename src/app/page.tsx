@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Reveal from "@/components/Reveal";
 import SetupCard from "@/components/SetupCard";
+import TicketLink from "@/components/TicketLink";
 import { useJson, useStatus } from "@/components/useData";
 import type { EventRow } from "@/lib/types";
 
@@ -143,7 +144,7 @@ export default function HomePage() {
               >
                 {EVENT_LABEL[e.type]}
               </span>
-              <span className="whitespace-nowrap text-sm font-semibold">{e.ticketKey}</span>
+              <TicketLink status={status} ticket={e.ticketKey} className="whitespace-nowrap text-sm font-semibold" />
               <span className="min-w-0 truncate text-sm text-muted">{e.summary}</span>
               <span className="ml-auto shrink-0 text-[13px] text-muted">{whenLabel(e.at, now)}</span>
             </li>
@@ -153,7 +154,7 @@ export default function HomePage() {
               <span className="w-[118px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-deep">
                 Moved
               </span>
-              <span className="whitespace-nowrap text-sm font-semibold">{t.key}</span>
+              <TicketLink status={status} ticket={t.key} className="whitespace-nowrap text-sm font-semibold" />
               <span className="min-w-0 truncate text-sm text-muted">{t.summary}</span>
               <span className="ml-auto shrink-0 text-[13px] text-muted">{t.status}</span>
             </li>
