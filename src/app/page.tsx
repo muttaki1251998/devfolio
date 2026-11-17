@@ -52,31 +52,44 @@ export default function HomePage() {
     setNow(new Date());
   }, []);
 
-  const standup = useMemo(() => {
-    if (!data) return "";
-    const y: string[] = [];
-    for (const e of data.recentEvents) {
-      y.push(`- ${STANDUP_LABEL[e.type]}: ${e.ticketKey}${e.summary ? ` — ${e.summary}` : ""}`);
-    }
-    for (const t of data.touched) {
-      if (!data.recentEvents.some((e) => e.ticketKey === t.key)) {
-        y.push(`- Worked on ${t.key} — ${t.summary} (${t.status})`);
-      }
-    }
+  const plan = useMemo(() => {
+    if (!data) return null;
+    const order = ["sent_to_testing", "pregroomed", "qa_bounce"] as const;
+    const groups = order
+      .map((type) => ({
+        type,
+        label: STANDUP_LABEL[type],
+        keys: [...new Set(data.recentEvents.filter((e) => e.type === type).map((e) => e.ticketKey))].sort(),
+      }))
+      .filter((g) => g.keys.length);
+    const worked = [
+      ...new Set(
+        data.touched
+          .filter((t) => !data.recentEvents.some((e) => e.ticketKey === t.key))
+          .map((t) => t.key),
+      ),
+    ].sort();
     const today = data.touched
       .slice(0, 5)
-      .map((t) => `- Continue ${t.key} — ${t.summary} (${t.status})`);
-    return [
-      "Yesterday:",
-      ...(y.length ? y : ["- (nothing recorded)"]),
-      "",
-      "Today:",
-      ...(today.length ? today : ["- Pick up the board"]),
-      "",
-      "Blockers:",
-      "- None",
-    ].join("\n");
+      .map((t) => ({ key: t.key, summary: t.summary, status: t.status }));
+    return { groups, worked, today };
   }, [data]);
+
+  const standup = useMemo(() => {
+    if (!plan) return "";
+    const lines = ["Yesterday:"];
+    if (!plan.groups.length && !plan.worked.length) lines.push("- (nothing recorded)");
+    for (const g of plan.groups) lines.push(`- ${g.label}: ${g.keys.join(", ")}`);
+    if (plan.worked.length) lines.push(`- Worked on: ${plan.worked.join(", ")}`);
+    lines.push("", "Today:");
+    if (plan.today.length) {
+      for (const t of plan.today) lines.push(`- Continue ${t.key} — ${t.summary}`);
+    } else {
+      lines.push("- Pick up the board");
+    }
+    lines.push("", "Blockers:", "- None");
+    return lines.join("\n");
+  }, [plan]);
 
   if (status && !status.configured) {
     return (
@@ -184,9 +197,86 @@ export default function HomePage() {
             </button>
           </div>
           <div className="rounded-[4px] bg-inset px-[26px] py-6">
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-[1.7] text-standup">
-              {standup || "…"}
-            </pre>
+            {plan ? (
+              <div className="flex flex-col gap-5 text-sm">
+                <div>
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                    Yesterday
+                  </h3>
+                  {plan.groups.length || plan.worked.length ? (
+                    <ul className="flex flex-col gap-2">
+                      {plan.groups.map((g) => (
+                        <li key={g.type} className="flex gap-3">
+                          <span
+                            className={`w-[118px] shrink-0 pt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] ${
+                              g.type === "qa_bounce" ? "text-bounce" : "text-deep"
+                            }`}
+                          >
+                            {g.label}
+                          </span>
+                          <span className="flex min-w-0 flex-wrap gap-x-1.5 leading-relaxed text-standup">
+                            {g.keys.map((k, i) => (
+                              <span key={k} className="whitespace-nowrap">
+                                <TicketLink status={status} ticket={k} className="font-medium" />
+                                {i < g.keys.length - 1 ? "," : ""}
+                              </span>
+                            ))}
+                          </span>
+                        </li>
+                      ))}
+                      {plan.worked.length > 0 && (
+                        <li className="flex gap-3">
+                          <span className="w-[118px] shrink-0 pt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                            Worked on
+                          </span>
+                          <span className="flex min-w-0 flex-wrap gap-x-1.5 leading-relaxed text-standup">
+                            {plan.worked.map((k, i) => (
+                              <span key={k} className="whitespace-nowrap">
+                                <TicketLink status={status} ticket={k} className="font-medium" />
+                                {i < plan.worked.length - 1 ? "," : ""}
+                              </span>
+                            ))}
+                          </span>
+                        </li>
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="text-standup">Nothing recorded.</p>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                    Today
+                  </h3>
+                  {plan.today.length ? (
+                    <ul className="flex flex-col gap-2">
+                      {plan.today.map((t) => (
+                        <li key={t.key} className="flex gap-3">
+                          <TicketLink
+                            status={status}
+                            ticket={t.key}
+                            className="shrink-0 whitespace-nowrap font-medium"
+                          />
+                          <span className="min-w-0 truncate text-standup">{t.summary}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-standup">Pick up the board.</p>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                    Blockers
+                  </h3>
+                  <p className="text-standup">None</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted">…</p>
+            )}
           </div>
         </section>
 
