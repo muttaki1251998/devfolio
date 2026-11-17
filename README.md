@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ☀ Devfolio
 
-## Getting Started
+**Look at it before standup.** A personal, self-hosted dashboard for the work you actually do in Jira — counted from the ticket changelog, not from whoever's name happens to be on a field.
 
-First, run the development server:
+Devfolio greets you in the morning, shows what moved since yesterday, drafts your standup, and keeps honest weekly/monthly counts of the two things most workflows never surface:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Pregroomed** — the first time *you* set the analysis field on a ticket
+- **Sent to testing** — the first time *you* set the resolution field
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Both are read from Jira's changelog, so automation writing "...By" fields on your behalf doesn't skew anything, and tickets that skip workflow statuses still count. QA bounces (testing → rework transitions) are tracked separately.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Screens
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Home** — good-morning greeting, what changed since yesterday, a drafted standup with a copy button, your board at a glance, and tickets going stale
+- **My Tickets** — open tickets assigned to you, grouped by status, with days-in-status aging
+- **Dashboard** — week / month / to-date counts, story points, clean-handoff rate, a 12-week chart, and the ticket-level events behind every number
+- **Goals** — manual check-off goals, plus auto goals tied to metrics ("Pregroom 10 tickets this week" fills itself in)
+- **Settings** — every field id and status name is editable, so Devfolio adapts to any team's workflow
 
-## Learn More
+## Stack
 
-To learn more about Next.js, take a look at the following resources:
+Next.js (App Router) · MongoDB · GSAP · Recharts · Tailwind CSS. One app, no separate backend: API routes talk to Jira's REST API with your own API token and cache everything in your own MongoDB, so pages load instantly.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Clone and install**
 
-## Deploy on Vercel
+   ```bash
+   git clone <this repo> && cd devfolio
+   npm install
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. **Create `.env.local`** (see `.env.example`):
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   ```ini
+   JIRA_BASE_URL=https://yourteam.atlassian.net
+   JIRA_EMAIL=you@company.com
+   JIRA_API_TOKEN=...   # id.atlassian.com → Security → Create API token
+   MONGODB_URI=...      # MongoDB Atlas free tier, or mongodb://localhost:27017
+   ```
+
+   Your token stays in this local file. It is never rendered in the UI and `.env*` is gitignored.
+
+3. **Run**
+
+   ```bash
+   npm run dev
+   ```
+
+   Open http://localhost:3000. The first sync scans the changelog of every candidate ticket (ones you analysed, resolved, or are assigned), which can take a minute on a long history; after that, syncs are incremental and run automatically every 15 minutes while the app is open.
+
+4. **Point it at your workflow** on the Settings screen: the analysis/resolution field ids, the story points field, your board's status names, and what counts as a QA bounce. Defaults match an Analysis Results / Resolution Details workflow.
+
+### Finding your field ids
+
+Open any ticket and visit `https://yourteam.atlassian.net/rest/api/3/issue/TICKET-123?expand=names` — the `names` block maps every `customfield_*` id to its display name.
+
+## How counting works (the fine print)
+
+- A ticket counts **once** per metric, at the first qualifying changelog entry — editing the field ten times is still one pregroom.
+- The **author of the field change** is what counts, not field values. A ticket you pregroomed that an automation later touched is still yours; a ticket someone else pregroomed never becomes yours.
+- **QA bounces** count every testing → rework transition, by any author, on candidate tickets.
+- Devfolio stores only ticket key, summary, status, type, points and timestamps — no descriptions, comments or attachments.
+
+## Privacy
+
+Single-user and self-hosted by design. Your Jira credentials live in `.env.local` on your machine; ticket metadata lives in a MongoDB you control. Nothing is sent anywhere else.
+
+## Roadmap
+
+- Wins log / monthly export for review season
+- An AI assistant that answers "what did I ship in March?"
+- Multi-site support
+
+PRs welcome.
+
+## License
+
+MIT
