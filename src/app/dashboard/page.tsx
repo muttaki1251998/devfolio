@@ -1,16 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import CountUp from "@/components/CountUp";
 import Reveal from "@/components/Reveal";
 import SetupCard from "@/components/SetupCard";
@@ -33,14 +24,23 @@ interface Payload {
 const PERIODS = [
   { id: "week", label: "This week" },
   { id: "month", label: "This month" },
-  { id: "all", label: "To date" },
+  { id: "all", label: "All time" },
 ] as const;
 
 const EVENT_LABEL: Record<string, string> = {
   pregroomed: "Pregroomed",
-  sent_to_testing: "Sent to testing",
+  sent_to_testing: "Sent to test",
   qa_bounce: "QA bounce",
 };
+
+const TH =
+  "border-b border-rule py-3.5 pr-6 text-left text-xs font-semibold uppercase tracking-[0.1em] text-muted";
+
+function whenLabel(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  return `${d.toLocaleDateString([], { weekday: "short" })} ${time}`;
+}
 
 export default function DashboardPage() {
   const status = useStatus();
@@ -51,20 +51,27 @@ export default function DashboardPage() {
     return <SetupCard env={status.env} mongoOk={status.mongoOk} />;
   }
 
+  const cleanRate =
+    data && data.counts.sentToTesting > 0
+      ? Math.round(
+          (100 * Math.max(data.counts.sentToTesting - data.counts.qaBounces, 0)) /
+            data.counts.sentToTesting,
+        )
+      : undefined;
+
   return (
-    <Reveal className="max-w-5xl">
-      <div data-reveal className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-4xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-2 text-soft">The work, counted the way it actually happened.</p>
-        </div>
-        <div className="flex rounded-xl border border-line bg-raised p-1">
+    <Reveal className="max-w-[1100px]">
+      <div data-reveal className="flex flex-wrap items-baseline gap-x-10 gap-y-3">
+        <h1 className="font-serif text-[44px] font-normal leading-tight tracking-[-0.02em]">Dashboard</h1>
+        <div role="group" aria-label="Period" className="flex gap-[22px]">
           {PERIODS.map((p) => (
             <button
               key={p.id}
               onClick={() => setPeriod(p.id)}
-              className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                period === p.id ? "bg-wash font-semibold text-accent-deep" : "text-soft hover:text-ink"
+              className={`cursor-pointer border-b-2 bg-transparent pb-[3px] text-sm ${
+                period === p.id
+                  ? "border-accent font-semibold text-ink"
+                  : "border-transparent font-medium text-muted hover:text-deep"
               }`}
             >
               {p.label}
@@ -73,92 +80,111 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Pregroomed" value={data?.counts.pregroomed} sub={`${data?.counts.pregroomedPoints ?? 0} pts`} />
-        <Stat label="Sent to testing" value={data?.counts.sentToTesting} sub={`${data?.counts.sentPoints ?? 0} pts`} />
-        <Stat label="QA bounces" value={data?.counts.qaBounces} sub="rework loops" />
+      <div data-reveal className="mt-9 flex flex-wrap border-y border-hairline">
         <Stat
-          label="Clean handoff rate"
-          value={
-            data && data.counts.sentToTesting > 0
-              ? Math.round(
-                  (100 * Math.max(data.counts.sentToTesting - data.counts.qaBounces, 0)) /
-                    data.counts.sentToTesting,
-                )
-              : undefined
-          }
-          suffix="%"
-          sub="sent minus bounces"
+          label={`Pregroomed · ${data?.counts.pregroomedPoints ?? 0} pts`}
+          value={data?.counts.pregroomed}
+          first
         />
+        <Stat
+          label={`Sent to testing · ${data?.counts.sentPoints ?? 0} pts`}
+          value={data?.counts.sentToTesting}
+        />
+        <Stat label="QA bounces" value={data?.counts.qaBounces} />
+        <Stat label="Clean handoff rate" value={cleanRate} suffix="%" accent />
       </div>
 
-      <section data-reveal className="card mt-5 p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">Last 12 weeks</h2>
-        <div className="mt-4 h-64">
+      <section data-reveal className="mt-14">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-serif text-2xl font-medium">Last 12 weeks</h2>
+          <div className="flex gap-5 text-[13px] text-muted">
+            <span>
+              <span aria-hidden className="mr-[7px] inline-block h-2.5 w-2.5 rounded-[2px] bg-accent" />
+              Pregroomed
+            </span>
+            <span>
+              <span aria-hidden className="mr-[7px] inline-block h-2.5 w-2.5 rounded-[2px] bg-barsoft" />
+              Sent to testing
+            </span>
+          </div>
+        </div>
+        <div className="mt-7 h-[240px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data?.series ?? []} barGap={2}>
-              <CartesianGrid vertical={false} stroke="var(--line)" />
-              <XAxis dataKey="label" tick={{ fill: "var(--ink-faint)", fontSize: 12 }} tickLine={false} axisLine={false} />
-              <YAxis allowDecimals={false} width={28} tick={{ fill: "var(--ink-faint)", fontSize: 12 }} tickLine={false} axisLine={false} />
+            <BarChart data={data?.series ?? []} barGap={5} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <XAxis
+                dataKey="label"
+                tick={{ fill: "#6e6250", fontSize: 12 }}
+                tickLine={false}
+                axisLine={{ stroke: "#d8ccb4" }}
+                tickMargin={10}
+              />
+              <YAxis hide allowDecimals={false} />
               <Tooltip
-                cursor={{ fill: "var(--bg-sunken)" }}
+                cursor={{ fill: "rgba(216, 204, 180, 0.25)" }}
                 contentStyle={{
-                  background: "var(--bg-raised)",
-                  border: "1px solid var(--line)",
-                  borderRadius: 12,
+                  background: "#fbf6ea",
+                  border: "1px solid #e5dbc7",
+                  borderRadius: 4,
+                  boxShadow: "none",
                   fontSize: 13,
+                  color: "#2a2014",
                 }}
               />
-              <Legend wrapperStyle={{ fontSize: 13 }} />
-              <Bar dataKey="pregroomed" name="Pregroomed" fill="var(--accent)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="sentToTesting" name="Sent to testing" fill="var(--ink-soft)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pregroomed" name="Pregroomed" fill="#c2551f" barSize={16} radius={[3, 3, 0, 0]} />
+              <Bar
+                dataKey="sentToTesting"
+                name="Sent to testing"
+                fill="#b4a88e"
+                barSize={16}
+                radius={[3, 3, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </section>
 
-      <section data-reveal className="card mt-5 overflow-hidden">
-        <div className="flex items-center justify-between px-6 pt-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
-            Behind the numbers
-          </h2>
-          <span className="text-xs text-faint">{data?.rows.length ?? 0} events</span>
+      <section data-reveal className="mt-16">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-serif text-2xl font-medium">Recent events</h2>
+          <span className="text-[13px] text-muted">{data?.rows.length ?? 0} events</span>
         </div>
-        <table className="mt-3 w-full text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-faint">
-              <th className="px-6 py-2 font-semibold">When</th>
-              <th className="px-3 py-2 font-semibold">Event</th>
-              <th className="px-3 py-2 font-semibold">Ticket</th>
-              <th className="px-3 py-2 font-semibold">Summary</th>
-              <th className="px-6 py-2 text-right font-semibold">Pts</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {data?.rows.map((r) => (
-              <tr key={`${r.ticketKey}-${r.type}-${r.at}`}>
-                <td className="whitespace-nowrap px-6 py-2.5 text-faint">
-                  {new Date(r.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                </td>
-                <td className="px-3 py-2.5">
-                  <span className={`chip ${r.type === "qa_bounce" ? "!bg-wash !text-accent-deep" : ""}`}>
-                    {EVENT_LABEL[r.type]}
-                  </span>
-                </td>
-                <td className="px-3 py-2.5 font-semibold">{r.ticketKey}</td>
-                <td className="max-w-sm truncate px-3 py-2.5 text-soft">{r.summary}</td>
-                <td className="px-6 py-2.5 text-right text-faint">{r.storyPoints ?? "–"}</td>
-              </tr>
-            ))}
-            {data && !data.rows.length && (
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full min-w-[720px] border-collapse text-sm">
+            <thead>
               <tr>
-                <td colSpan={5} className="px-6 py-6 text-center text-faint">
-                  No events in this period yet. Sync, or widen the period.
-                </td>
+                <th className={TH}>Event</th>
+                <th className={TH}>Ticket</th>
+                <th className={TH}>Summary</th>
+                <th className={`${TH} !text-right`}>Pts</th>
+                <th className={`${TH} !pr-0 !text-right`}>When</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data?.rows.map((r) => (
+                <tr key={`${r.ticketKey}-${r.type}-${r.at}`} className="border-b border-divider last:border-b-0">
+                  <td
+                    className={`whitespace-nowrap py-3.5 pr-6 text-xs font-semibold uppercase tracking-[0.06em] ${
+                      r.type === "qa_bounce" ? "text-bounce" : "text-deep"
+                    }`}
+                  >
+                    {EVENT_LABEL[r.type]}
+                  </td>
+                  <td className="whitespace-nowrap py-3.5 pr-6 font-semibold">{r.ticketKey}</td>
+                  <td className="max-w-sm truncate py-3.5 pr-6 text-standup">{r.summary}</td>
+                  <td className="py-3.5 pr-6 text-right text-muted">{r.storyPoints ?? "—"}</td>
+                  <td className="whitespace-nowrap py-3.5 text-right text-muted">{whenLabel(r.at)}</td>
+                </tr>
+              ))}
+              {data && !data.rows.length && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-muted">
+                    No events in this period yet. Sync, or widen the period.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </Reveal>
   );
@@ -167,22 +193,23 @@ export default function DashboardPage() {
 function Stat({
   label,
   value,
-  sub,
   suffix,
+  accent,
+  first,
 }: {
   label: string;
   value?: number;
-  sub?: string;
   suffix?: string;
+  accent?: boolean;
+  first?: boolean;
 }) {
   return (
-    <div data-reveal className="card p-5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-faint">{label}</p>
-      <p className="mt-2 font-serif text-4xl font-semibold">
+    <div className={`flex-[1_1_200px] py-7 ${first ? "pr-8" : "border-l border-hairline px-8"}`}>
+      <div className={`font-serif text-[52px] font-light leading-none ${accent ? "text-accent" : ""}`}>
         {value === undefined ? "–" : <CountUp value={value} />}
         {value !== undefined && suffix}
-      </p>
-      {sub && <p className="mt-1 text-xs text-faint">{sub}</p>}
+      </div>
+      <div className="mt-2 text-[13px] font-medium text-muted">{label}</div>
     </div>
   );
 }

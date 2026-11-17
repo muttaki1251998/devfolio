@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Reveal from "@/components/Reveal";
 import SetupCard from "@/components/SetupCard";
 import { useJson, useStatus } from "@/components/useData";
@@ -21,9 +22,12 @@ interface TicketsPayload {
   staleAfterDays: number;
 }
 
+const COLLAPSED_ROWS = 6;
+
 export default function TicketsPage() {
   const status = useStatus();
   const { data } = useJson<TicketsPayload>(status?.configured ? "/api/tickets" : null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   if (status && !status.configured) {
     return <SetupCard env={status.env} mongoOk={status.mongoOk} />;
@@ -42,48 +46,85 @@ export default function TicketsPage() {
       ].filter((g) => g.rows.length)
     : [];
 
-  return (
-    <Reveal className="max-w-4xl">
-      <h1 data-reveal className="font-serif text-4xl font-semibold tracking-tight">
-        My Tickets
-      </h1>
-      <p data-reveal className="mt-2 text-soft">
-        {data ? `${data.rows.length} open tickets assigned to you.` : "Loading…"}
-      </p>
+  const isStale = (r: TicketRow) =>
+    !!data && r.daysInStatus !== null && r.daysInStatus >= data.staleAfterDays;
+  const staleCount = data ? data.rows.filter(isStale).length : 0;
 
-      <div className="mt-8 space-y-8">
-        {groups.map((g) => (
-          <section key={g.status} data-reveal>
-            <div className="mb-3 flex items-baseline gap-3">
-              <h2 className="font-serif text-xl font-semibold">{g.status}</h2>
-              <span className="text-sm text-faint">{g.rows.length}</span>
+  return (
+    <Reveal className="max-w-[1000px]">
+      <div data-reveal className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+        <h1 className="font-serif text-[44px] font-normal leading-tight tracking-[-0.02em]">My Tickets</h1>
+        <p className="text-sm text-muted">
+          {data ? (
+            <>
+              {data.rows.length} open
+              {staleCount > 0 && (
+                <>
+                  {" · "}
+                  <span className="font-medium text-bounce">
+                    {staleCount} idle {data.staleAfterDays}+ days
+                  </span>
+                </>
+              )}
+            </>
+          ) : (
+            "Loading…"
+          )}
+        </p>
+      </div>
+
+      {groups.map((g) => {
+        const open = !!expanded[g.status];
+        const hidden = g.rows.length - COLLAPSED_ROWS;
+        const shown = open || hidden <= 0 ? g.rows : g.rows.slice(0, COLLAPSED_ROWS);
+        return (
+          <section key={g.status} data-reveal className="mt-12">
+            <div className="flex items-baseline gap-3.5 border-b border-rule pb-2.5">
+              <h2 className="font-serif text-[22px] font-medium">{g.status}</h2>
+              <span className="text-sm text-muted">{g.rows.length}</span>
             </div>
-            <div className="card divide-y divide-line">
-              {g.rows.map((r) => {
-                const stale = data && r.daysInStatus !== null && r.daysInStatus >= data.staleAfterDays;
+            <ul>
+              {shown.map((r, i) => {
+                const stale = isStale(r);
                 return (
-                  <div key={r.key} className="flex items-center gap-4 px-5 py-3.5">
-                    <span className="w-24 shrink-0 text-sm font-semibold">{r.key}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-soft">{r.summary}</span>
-                    {r.storyPoints != null && <span className="chip shrink-0">{r.storyPoints} pts</span>}
-                    {r.daysInStatus !== null && (
-                      <span className={`chip shrink-0 ${stale ? "!bg-wash !text-accent-deep" : ""}`}>
-                        {r.daysInStatus}d
-                      </span>
-                    )}
-                    <span className="w-16 shrink-0 text-right text-xs text-faint">{r.issueType}</span>
-                  </div>
+                  <li
+                    key={r.key}
+                    className={`flex items-baseline gap-4 py-[15px] ${
+                      i < shown.length - 1 ? "border-b border-divider" : ""
+                    }`}
+                  >
+                    <span className="w-[88px] shrink-0 whitespace-nowrap text-sm font-semibold">{r.key}</span>
+                    <span className="min-w-0 truncate text-sm text-standup">{r.summary}</span>
+                    <span className="ml-auto shrink-0 text-[13px] text-muted">
+                      {r.storyPoints != null ? `${r.storyPoints} ${r.storyPoints === 1 ? "pt" : "pts"}` : ""}
+                    </span>
+                    <span
+                      className={`w-[90px] shrink-0 text-right text-[13px] ${
+                        stale ? "font-medium text-bounce" : "text-muted"
+                      }`}
+                    >
+                      {r.daysInStatus !== null ? `${stale ? "● " : ""}${r.daysInStatus}d here` : ""}
+                    </span>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
+            {hidden > 0 && (
+              <button
+                className="btn-link mt-3"
+                onClick={() => setExpanded((p) => ({ ...p, [g.status]: !open }))}
+              >
+                {open ? "Show fewer" : `Show ${hidden} more`}
+              </button>
+            )}
           </section>
-        ))}
-        {data && !data.rows.length && (
-          <p data-reveal className="text-soft">
-            Nothing assigned to you right now. Run a sync from the sidebar if that seems wrong.
-          </p>
-        )}
-      </div>
+        );
+      })}
+      {data && !data.rows.length && (
+        <p data-reveal className="mt-12 text-muted">
+          Nothing assigned to you right now. Run a sync from the sidebar if that seems wrong.
+        </p>
+      )}
     </Reveal>
   );
 }
