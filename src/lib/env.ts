@@ -1,3 +1,5 @@
+import { authEnabled } from "@/auth.config";
+
 export interface EnvStatus {
   jiraBaseUrl: boolean;
   jiraEmail: boolean;
@@ -14,9 +16,14 @@ export function envStatus(): EnvStatus {
   };
 }
 
-export function isConfigured(): boolean {
+export function hasBasicCreds(): boolean {
   const s = envStatus();
-  return s.jiraBaseUrl && s.jiraEmail && s.jiraApiToken && s.mongodbUri;
+  return s.jiraBaseUrl && s.jiraEmail && s.jiraApiToken;
+}
+
+/** Jira access comes from an env API token or, per session, from the Atlassian login. */
+export function isConfigured(): boolean {
+  return envStatus().mongodbUri && (hasBasicCreds() || authEnabled());
 }
 
 export function jiraEnv() {

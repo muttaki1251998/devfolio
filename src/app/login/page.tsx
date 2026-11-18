@@ -4,7 +4,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 import { authEnabled, configuredProviders } from "@/auth.config";
-import type { ProviderId } from "@/auth.config";
 
 export const metadata = { title: "Sign in — Devfolio" };
 
@@ -14,32 +13,14 @@ const STATS = [
   { value: "80%", label: "clean handoffs", accent: true },
 ];
 
-function GoogleLogo() {
+function AtlassianLogo() {
   return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.6 17.7 9.5 24 9.5z" />
-      <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z" />
-      <path fill="#FBBC05" d="M10.5 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.2C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.9-6.2z" />
-      <path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.5-5.7l-7.7-6c-2.1 1.4-4.8 2.3-7.8 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.2C6.5 42.6 14.6 48 24 48z" />
+    <svg width="18" height="18" viewBox="0 0 32 32" aria-hidden="true">
+      <path fill="#2684FF" d="M9.2 14.6a.9.9 0 0 0-1.5.2L.1 28.1a.9.9 0 0 0 .8 1.3h10.4a.9.9 0 0 0 .8-.5c2.2-4.6.9-11.5-2.9-14.3z" />
+      <path fill="#2684FF" d="M15.1 2.4c-3.7 5.9-3.5 12.4-.5 17.9l5 10c.2.4.5.6.9.6h10.4a.9.9 0 0 0 .8-1.3L16.6 2.4a.8.8 0 0 0-1.5 0z" />
     </svg>
   );
 }
-
-function MicrosoftLogo() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true">
-      <rect x="1" y="1" width="9" height="9" fill="#F25022" />
-      <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
-      <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
-      <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
-    </svg>
-  );
-}
-
-const LOGOS: Record<ProviderId, () => React.ReactNode> = {
-  google: GoogleLogo,
-  "microsoft-entra-id": MicrosoftLogo,
-};
 
 function Sun() {
   return (
@@ -88,7 +69,7 @@ async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: s
       {providers.length > 0 ? (
         <>
           <p className="mt-3 text-sm leading-[1.6] text-muted">
-            Sign in with your work account to open your dashboard.
+            Sign in with your Atlassian account to open your dashboard.
           </p>
           {errorText && (
             <p role="alert" className="mt-5 border-l-[3px] border-accent pl-3 text-[13px] leading-[1.6] text-deep">
@@ -96,33 +77,27 @@ async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: s
             </p>
           )}
           <div className="mt-9 flex flex-col gap-3">
-            {providers.map((p) => {
-              const Logo = LOGOS[p.id];
-              return (
-                <form
-                  key={p.id}
-                  action={async () => {
-                    "use server";
-                    await signIn(p.id, { redirectTo: "/" });
-                  }}
-                >
-                  <button
-                    type="submit"
-                    className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-full border border-[#D8CCB4] bg-white px-5 py-3.5 font-sans text-[15px] font-medium text-ink hover:border-accent"
-                  >
-                    <Logo />
-                    Continue with {p.label}
-                  </button>
-                </form>
-              );
-            })}
+            <form
+              action={async () => {
+                "use server";
+                await signIn("atlassian", { redirectTo: "/" });
+              }}
+            >
+              <button
+                type="submit"
+                className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-full border border-[#D8CCB4] bg-white px-5 py-3.5 font-sans text-[15px] font-medium text-ink hover:border-accent"
+              >
+                <AtlassianLogo />
+                Continue with Atlassian
+              </button>
+            </form>
           </div>
         </>
       ) : (
         <div className="mt-3 text-sm leading-[1.6] text-muted">
           <p>
             Login isn’t configured, so there’s nothing to sign in to. Devfolio is open on this server
-            until you add an OAuth provider in{" "}
+            until you add an Atlassian OAuth app in{" "}
             <code className="rounded-[3px] bg-inset px-1.5 py-0.5 text-[13px]">.env.local</code>.
           </p>
           <Link href="/" className="mt-6 inline-block font-medium text-deep hover:underline">
@@ -133,8 +108,7 @@ async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: s
 
       <div className="mt-8 border-t border-divider pt-5">
         <p className="text-[13px] leading-[1.6] text-muted">
-          Only your workspace account is used to sign you in. Jira credentials are configured once,
-          on the server, by you.
+          Your Atlassian account both signs you in and authorizes the Jira reads — no API token needed.
         </p>
       </div>
     </>

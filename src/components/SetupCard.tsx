@@ -7,8 +7,12 @@ export default function SetupCard({
 }) {
   const rows: [string, string, boolean][] = [
     ["JIRA_BASE_URL", "Your Jira site, e.g. https://yourteam.atlassian.net", env.jiraBaseUrl],
-    ["JIRA_EMAIL", "The Atlassian account email", env.jiraEmail],
-    ["JIRA_API_TOKEN", "From id.atlassian.com → Security → API tokens", env.jiraApiToken],
+    ["JIRA_EMAIL", "The Atlassian account email (needed for an API token)", env.jiraEmail],
+    [
+      "JIRA_API_TOKEN",
+      "Either an API token (id.atlassian.com → Security → API tokens) or Atlassian login: set AUTH_SECRET, AUTH_ATLASSIAN_ID and AUTH_ATLASSIAN_SECRET instead",
+      env.jiraApiToken,
+    ],
     ["MONGODB_URI", "MongoDB connection string (Atlas free tier or local)", env.mongodbUri],
   ];
   const dot = (ok: boolean) => (
@@ -25,7 +29,7 @@ export default function SetupCard({
         Let’s get you set up<span className="text-accent">.</span>
       </h2>
       <p className="mt-4 text-[15px] leading-relaxed text-muted">
-        Devfolio reads your Jira changelog with your own API token and keeps a copy in your own
+        Devfolio reads your Jira changelog with your own API token or Atlassian login and keeps a copy in your own
         MongoDB. Create a <code className="rounded-[3px] bg-inset px-1.5 py-0.5 text-[13px]">.env.local</code>{" "}
         file in the project root with:
       </p>

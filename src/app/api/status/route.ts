@@ -24,12 +24,14 @@ export async function GET() {
   const user = session?.user
     ? { name: session.user.name ?? null, email: session.user.email ?? null }
     : null;
+  const authError = !!session?.authError;
   return NextResponse.json({
     env,
     mongoOk,
     configured: isConfigured() && mongoOk,
     sync,
-    auth: { enabled: authOn, user },
-    jiraBaseUrl: process.env.JIRA_BASE_URL?.replace(/\/+$/, "") || null,
+    auth: { enabled: authOn, user, authError },
+    jiraBaseUrl:
+      process.env.JIRA_BASE_URL?.replace(/[/]+$/, "") || session?.jiraSiteUrl || null,
   });
 }

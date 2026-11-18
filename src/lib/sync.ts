@@ -1,4 +1,4 @@
-import { getChangelog, getMyself, searchJql, JiraIssue } from "./jira";
+import { getChangelog, getMyself, searchJql, JiraAuth, JiraIssue } from "./jira";
 import { ensureIndexes, getDb } from "./mongo";
 import { loadSettings } from "./settings";
 import { AppSettings, MetricEventDoc, SyncStateDoc, TicketDoc } from "./types";
@@ -56,11 +56,12 @@ function toTicketDoc(issue: JiraIssue, s: AppSettings, myAccountId: string): Tic
  * write them on the author's behalf.
  */
 async function scanTicket(
+  auth: JiraAuth,
   key: string,
   s: AppSettings,
   myAccountId: string,
 ): Promise<{ events: MetricEventDoc[]; statusSince: string | null }> {
-  const entries = await getChangelog(key);
+  const entries = await getChangelog(auth, key);
   const events: MetricEventDoc[] = [];
   let pregroomed = false;
   let sent = false;
@@ -88,7 +89,7 @@ async function scanTicket(
   return { events, statusSince };
 }
 
-async function doSync(): Promise<SyncResult> {
+async function doSync(auth: JiraAuth): Promise<SyncResult> {
   const db = await getDb();
   await ensureIndexes(db);
   const s = await loadSettings();
@@ -97,7 +98,7 @@ async function doSync(): Promise<SyncResult> {
   let accountId = state.accountId;
   let displayName = state.displayName;
   if (!accountId) {
-    const me = await getMyself();
+    const me = await getMyself(auth);
     accountId = me.accountId;
     displayName = me.displayName;
   }
@@ -130,7 +131,7 @@ async function doSync(): Promise<SyncResult> {
     "created",
     s.storyPointsFieldId,
   ];
-  const issues = await searchJql(jql, fields);
+  const issues = await searchJql(auth, jql, fields);
 
   const tickets = db.collection<TicketDoc>("tickets");
   const eventsCol = db.collection<MetricEventDoc>("events");
@@ -147,7 +148,7 @@ async function doSync(): Promise<SyncResult> {
 
     if (needsScan) {
       scanned++;
-      const { events, statusSince } = await scanTicket(doc.key, s, accountId!);
+      const { events, statusSince } = await scanTicket(auth, doc.key, s, accountId!);
       doc.statusSince = statusSince;
       doc.scannedUpdatedAt = doc.jiraUpdatedAt;
       for (const ev of events) {
@@ -184,7 +185,7 @@ async function doSync(): Promise<SyncResult> {
 }
 
 /** Runs a sync; concurrent callers share the in-flight run. */
-export async function runSync(opts?: { ifStaleMinutes?: number }): Promise<SyncResult> {
+export async function runSync(auth: JiraAuth, opts?: { ifStaleMinutes?: number }): Promise<SyncResult> {
   if (opts?.ifStaleMinutes) {
     const state = await getSyncState();
     if (state?.lastSyncAt) {
@@ -195,7 +196,7 @@ export async function runSync(opts?: { ifStaleMinutes?: number }): Promise<SyncR
     }
   }
   if (!syncInFlight) {
-    syncInFlight = doSync()
+    syncInFlight = doSync(auth)
       .catch((e: unknown): SyncResult => {
         const msg = e instanceof Error ? e.message : String(e);
         return { ok: false, scanned: 0, tickets: 0, newEvents: 0, error: msg, at: new Date().toISOString() };

@@ -1,28 +1,22 @@
 import type { NextAuthConfig } from "next-auth";
-import Google from "next-auth/providers/google";
-import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
-
-export type ProviderId = "google" | "microsoft-entra-id";
+import type { JWT } from "next-auth/jwt";
+import Atlassian from "next-auth/providers/atlassian";
+import { isExpired, refreshTokens, resolveSite } from "@/lib/atlassian-oauth";
 
 export interface ProviderInfo {
-  id: ProviderId;
+  id: "atlassian";
   label: string;
 }
 
-const googleOn = () => !!(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
-const microsoftOn = () =>
-  !!(process.env.AUTH_MICROSOFT_ENTRA_ID_ID && process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET);
+const atlassianOn = () => !!(process.env.AUTH_ATLASSIAN_ID && process.env.AUTH_ATLASSIAN_SECRET);
 
 export function configuredProviders(): ProviderInfo[] {
-  const list: ProviderInfo[] = [];
-  if (googleOn()) list.push({ id: "google", label: "Google" });
-  if (microsoftOn()) list.push({ id: "microsoft-entra-id", label: "Microsoft" });
-  return list;
+  return atlassianOn() ? [{ id: "atlassian", label: "Atlassian" }] : [];
 }
 
-/** Login is only enforced when a secret and at least one provider are configured. */
+/** Login is only enforced when a secret and the Atlassian OAuth app are configured. */
 export function authEnabled(): boolean {
-  return !!process.env.AUTH_SECRET && configuredProviders().length > 0;
+  return !!process.env.AUTH_SECRET && atlassianOn();
 }
 
 export function allowedEmails(): string[] {
@@ -33,28 +27,33 @@ export function allowedEmails(): string[] {
     .filter(Boolean);
 }
 
+/** Fields kept in the encrypted session cookie only; never copied to the browser-facing session. */
+export interface JiraTokenFields {
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  cloudId?: string;
+  siteUrl?: string;
+  error?: "RefreshFailed";
+}
+
+export type AppJWT = JWT & JiraTokenFields;
+
 function buildProviders(): NextAuthConfig["providers"] {
-  const providers: NextAuthConfig["providers"] = [];
-  if (googleOn()) {
-    providers.push(
-      Google({
-        clientId: process.env.AUTH_GOOGLE_ID,
-        clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      }),
-    );
-  }
-  if (microsoftOn()) {
-    providers.push(
-      MicrosoftEntraID({
-        clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
-        clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
-        ...(process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER
-          ? { issuer: process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER }
-          : {}),
-      }),
-    );
-  }
-  return providers;
+  if (!atlassianOn()) return [];
+  return [
+    Atlassian({
+      clientId: process.env.AUTH_ATLASSIAN_ID,
+      clientSecret: process.env.AUTH_ATLASSIAN_SECRET,
+      authorization: {
+        params: {
+          scope: "read:me read:jira-work read:jira-user offline_access",
+          audience: "api.atlassian.com",
+          prompt: "consent",
+        },
+      },
+    }),
+  ];
 }
 
 export const authConfig: NextAuthConfig = {
@@ -66,8 +65,42 @@ export const authConfig: NextAuthConfig = {
     signIn({ profile, user }) {
       const email = (user?.email ?? profile?.email ?? "").toLowerCase();
       if (!email) return false;
-      if (profile && "email_verified" in profile && profile.email_verified === false) return false;
       return allowedEmails().includes(email);
+    },
+    async jwt({ token, account }) {
+      const t = token as AppJWT;
+      if (account) {
+        t.accessToken = account.access_token;
+        t.refreshToken = account.refresh_token;
+        t.expiresAt = account.expires_at;
+        t.error = undefined;
+        const site = account.access_token
+          ? await resolveSite(account.access_token, process.env.JIRA_BASE_URL).catch(() => null)
+          : null;
+        t.cloudId = site?.cloudId;
+        t.siteUrl = site?.siteUrl;
+        return t;
+      }
+      if (!t.accessToken || !isExpired(t.expiresAt) || t.error) return t;
+      if (!t.refreshToken) {
+        t.error = "RefreshFailed";
+        return t;
+      }
+      try {
+        const next = await refreshTokens(t.refreshToken);
+        t.accessToken = next.accessToken;
+        t.refreshToken = next.refreshToken;
+        t.expiresAt = next.expiresAt;
+      } catch {
+        t.error = "RefreshFailed";
+      }
+      return t;
+    },
+    session({ session, token }) {
+      const t = token as AppJWT;
+      session.authError = !!t.error;
+      session.jiraSiteUrl = t.siteUrl ?? null;
+      return session;
     },
   },
 };

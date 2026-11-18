@@ -37,7 +37,7 @@ export default function SettingsPage() {
     setS((prev) => (prev ? { ...prev, [k]: v } : prev));
 
   const jiraOk = status
-    ? status.env.jiraBaseUrl && status.env.jiraEmail && status.env.jiraApiToken
+    ? (status.env.jiraBaseUrl && status.env.jiraEmail && status.env.jiraApiToken) || !!status.auth?.enabled
     : null;
 
   return (

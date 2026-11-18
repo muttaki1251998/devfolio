@@ -1,22 +1,20 @@
-import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import type { NextRequest, NextFetchEvent } from "next/server";
-import { authConfig, authEnabled } from "@/auth.config";
+import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
+import { authEnabled } from "@/auth.config";
 
-const { auth } = NextAuth(authConfig);
+export async function proxy(req: NextRequest) {
+  if (!authEnabled()) return NextResponse.next();
 
-const guard = auth((req) => {
-  if (req.auth) return NextResponse.next();
-  const { pathname } = req.nextUrl;
-  if (pathname.startsWith("/api/")) {
+  const secure =
+    req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";
+  const token = await getToken({ req, secret: process.env.AUTH_SECRET, secureCookie: secure });
+  if (token) return NextResponse.next();
+
+  if (req.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return NextResponse.redirect(new URL("/login", req.nextUrl.origin));
-});
-
-export function proxy(req: NextRequest, event: NextFetchEvent) {
-  if (!authEnabled()) return NextResponse.next();
-  return (guard as unknown as (r: NextRequest, e: NextFetchEvent) => Promise<Response>)(req, event);
 }
 
 export const config = {
