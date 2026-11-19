@@ -1,16 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongo";
+import { resolveOwner } from "@/lib/owner";
 import { loadSettings } from "@/lib/settings";
 import { TicketDoc } from "@/lib/types";
 
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const owner = await resolveOwner(req);
+  if (!owner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const db = await getDb();
-    const settings = await loadSettings();
+    const settings = await loadSettings(owner);
     const tickets = await db
       .collection<TicketDoc>("tickets")
-      .find({ isMine: true, statusCategory: { $ne: "Done" } })
+      .find({ owner, isMine: true, statusCategory: { $ne: "Done" } })
       .sort({ jiraUpdatedAt: -1 })
       .toArray();
 

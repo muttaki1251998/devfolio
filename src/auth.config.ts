@@ -33,6 +33,7 @@ export interface JiraTokenFields {
   refreshToken?: string;
   expiresAt?: number;
   cloudId?: string;
+  accountId?: string;
   siteUrl?: string;
   error?: "RefreshFailed";
 }
@@ -67,13 +68,25 @@ export const authConfig: NextAuthConfig = {
       if (!email) return false;
       return allowedEmails().includes(email);
     },
-    async jwt({ token, account }) {
+    async jwt({ token, account, profile }) {
       const t = token as AppJWT;
       if (account) {
         t.accessToken = account.access_token;
         t.refreshToken = account.refresh_token;
         t.expiresAt = account.expires_at;
         t.error = undefined;
+        // token.sub is a random UUID in Auth.js v5 without a DB adapter; the stable
+        // identity is Atlassian's account_id, from the userinfo profile or /me.
+        let accountId = (profile as { account_id?: string } | undefined)?.account_id;
+        if (!accountId && account.access_token) {
+          accountId = await fetch("https://api.atlassian.com/me", {
+            headers: { Authorization: `Bearer ${account.access_token}` },
+          })
+            .then((r) => (r.ok ? (r.json() as Promise<{ account_id?: string }>) : null))
+            .then((j) => j?.account_id ?? undefined)
+            .catch(() => undefined);
+        }
+        t.accountId = accountId;
         const site = account.access_token
           ? await resolveSite(account.access_token, process.env.JIRA_BASE_URL).catch(() => null)
           : null;
@@ -100,6 +113,7 @@ export const authConfig: NextAuthConfig = {
       const t = token as AppJWT;
       session.authError = !!t.error;
       session.jiraSiteUrl = t.siteUrl ?? null;
+      session.accountId = t.accountId ?? null;
       return session;
     },
   },

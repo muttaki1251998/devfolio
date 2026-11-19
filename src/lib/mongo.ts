@@ -29,10 +29,12 @@ export async function ensureIndexes(db: Db) {
   if (indexesEnsured) return;
   indexesEnsured = true;
   await Promise.all([
-    db.collection("tickets").createIndex({ key: 1 }, { unique: true }),
-    db.collection("events").createIndex({ ticketKey: 1, type: 1, at: 1 }, { unique: true }),
-    db.collection("events").createIndex({ at: 1 }),
-    db.collection("goals").createIndex({ createdAt: -1 }),
+    db.collection("tickets").createIndex({ owner: 1, key: 1 }, { unique: true }),
+    db
+      .collection("events")
+      .createIndex({ owner: 1, ticketKey: 1, type: 1, at: 1 }, { unique: true }),
+    db.collection("events").createIndex({ owner: 1, at: 1 }),
+    db.collection("goals").createIndex({ owner: 1, createdAt: -1 }),
   ]);
 }
 

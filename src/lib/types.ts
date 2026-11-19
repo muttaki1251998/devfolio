@@ -1,6 +1,7 @@
 export type MetricEventType = "pregroomed" | "sent_to_testing" | "qa_bounce";
 
 export interface TicketDoc {
+  owner: string;
   key: string;
   summary: string;
   status: string;
@@ -18,6 +19,7 @@ export interface TicketDoc {
 }
 
 export interface MetricEventDoc {
+  owner: string;
   ticketKey: string;
   type: MetricEventType;
   /** ISO timestamp of the changelog entry that produced the event. */
@@ -25,6 +27,7 @@ export interface MetricEventDoc {
 }
 
 export interface GoalDoc {
+  owner: string;
   title: string;
   done: boolean;
   createdAt: string;
@@ -72,7 +75,7 @@ export interface MetricCounts {
   sentPoints: number;
 }
 
-export interface EventRow extends MetricEventDoc {
+export interface EventRow extends Omit<MetricEventDoc, "owner"> {
   summary?: string;
   status?: string;
   storyPoints?: number | null;

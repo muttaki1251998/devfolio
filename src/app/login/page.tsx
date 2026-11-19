@@ -56,7 +56,9 @@ async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: s
 
   if (authEnabled()) {
     const session = await auth();
-    if (session?.user) redirect("/");
+    // A session without accountId predates owner scoping; the proxy rejects it,
+    // so redirecting it to "/" would loop. Let it sign in again instead.
+    if (session?.user && session.accountId) redirect("/");
   }
 
   const errorText = error

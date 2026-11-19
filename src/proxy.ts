@@ -9,7 +9,9 @@ export async function proxy(req: NextRequest) {
   const secure =
     req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";
   const token = await getToken({ req, secret: process.env.AUTH_SECRET, secureCookie: secure });
-  if (token) return NextResponse.next();
+  // A session from before owner scoping has no accountId; it must sign in again
+  // so data can be keyed to the Atlassian account (token.sub is a random UUID).
+  if ((token as { accountId?: string } | null)?.accountId) return NextResponse.next();
 
   if (req.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

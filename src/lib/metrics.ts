@@ -12,12 +12,12 @@ function periodStart(period: Period, weekStartsMonday: boolean): Date | null {
   return null;
 }
 
-async function joinTickets(events: MetricEventDoc[]): Promise<EventRow[]> {
+async function joinTickets(owner: string, events: MetricEventDoc[]): Promise<EventRow[]> {
   const db = await getDb();
   const keys = [...new Set(events.map((e) => e.ticketKey))];
   const tickets = await db
     .collection<TicketDoc>("tickets")
-    .find({ key: { $in: keys } })
+    .find({ owner, key: { $in: keys } })
     .toArray();
   const byKey = new Map(tickets.map((t) => [t.key, t]));
   return events.map((e) => {
@@ -33,16 +33,16 @@ async function joinTickets(events: MetricEventDoc[]): Promise<EventRow[]> {
   });
 }
 
-export async function eventsSince(since: Date | null): Promise<EventRow[]> {
+export async function eventsSince(owner: string, since: Date | null): Promise<EventRow[]> {
   const db = await getDb();
-  const filter = since ? { at: { $gte: since.toISOString() } } : {};
+  const filter = since ? { owner, at: { $gte: since.toISOString() } } : { owner };
   const events = await db
     .collection<MetricEventDoc>("events")
     .find(filter)
     .sort({ at: -1 })
     .limit(1000)
     .toArray();
-  return joinTickets(events);
+  return joinTickets(owner, events);
 }
 
 export function countRows(rows: EventRow[]): MetricCounts {
@@ -74,16 +74,16 @@ export interface WeeklyPoint {
   sentToTesting: number;
 }
 
-export async function dashboardData(period: Period) {
-  const settings = await loadSettings();
+export async function dashboardData(owner: string, period: Period) {
+  const settings = await loadSettings(owner);
   const since = periodStart(period, settings.weekStartsMonday);
-  const rows = await eventsSince(since);
+  const rows = await eventsSince(owner, since);
   const counts = countRows(rows);
 
   // Last 12 weeks series, independent of the selected period.
   const now = new Date();
   const firstWeek = startOfWeek(addDays(now, -7 * 11), settings.weekStartsMonday);
-  const allRecent = await eventsSince(firstWeek);
+  const allRecent = await eventsSince(owner, firstWeek);
   const series: WeeklyPoint[] = [];
   for (let i = 0; i < 12; i++) {
     const ws = addDays(firstWeek, i * 7);
@@ -104,6 +104,7 @@ export async function dashboardData(period: Period) {
 }
 
 export async function countsForPeriod(
+  owner: string,
   metric: MetricEventType,
   period: "week" | "month",
   weekStartsMonday: boolean,
@@ -112,18 +113,18 @@ export async function countsForPeriod(
   const db = await getDb();
   return db
     .collection<MetricEventDoc>("events")
-    .countDocuments({ type: metric, at: { $gte: since.toISOString() } });
+    .countDocuments({ owner, type: metric, at: { $gte: since.toISOString() } });
 }
 
-export async function homeData() {
-  const settings = await loadSettings();
+export async function homeData(owner: string) {
+  const settings = await loadSettings(owner);
   const db = await getDb();
   const sinceYesterday = addDays(startOfDay(new Date()), -1);
 
-  const recentEvents = await eventsSince(sinceYesterday);
+  const recentEvents = await eventsSince(owner, sinceYesterday);
   const myTickets = await db
     .collection<TicketDoc>("tickets")
-    .find({ isMine: true, statusCategory: { $ne: "Done" } })
+    .find({ owner, isMine: true, statusCategory: { $ne: "Done" } })
     .sort({ jiraUpdatedAt: -1 })
     .toArray();
 

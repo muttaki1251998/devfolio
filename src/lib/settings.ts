@@ -2,18 +2,16 @@ import { getDb } from "./mongo";
 import { DEFAULT_SETTINGS } from "./defaults";
 import { AppSettings } from "./types";
 
-const SETTINGS_ID = "app";
-
-export async function loadSettings(): Promise<AppSettings> {
+export async function loadSettings(owner: string): Promise<AppSettings> {
   const db = await getDb();
-  const doc = await db.collection("settings").findOne({ _id: SETTINGS_ID as never });
+  const doc = await db.collection("settings").findOne({ _id: owner as never });
   if (!doc) return { ...DEFAULT_SETTINGS };
   const { _id, ...rest } = doc as Record<string, unknown>;
   void _id;
   return { ...DEFAULT_SETTINGS, ...(rest as Partial<AppSettings>) };
 }
 
-export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+export async function saveSettings(owner: string, patch: Partial<AppSettings>): Promise<AppSettings> {
   const db = await getDb();
   const clean: Partial<AppSettings> = {};
   const allowed: (keyof AppSettings)[] = [
@@ -34,6 +32,6 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSett
   }
   await db
     .collection("settings")
-    .updateOne({ _id: SETTINGS_ID as never }, { $set: clean }, { upsert: true });
-  return loadSettings();
+    .updateOne({ _id: owner as never }, { $set: clean }, { upsert: true });
+  return loadSettings(owner);
 }
