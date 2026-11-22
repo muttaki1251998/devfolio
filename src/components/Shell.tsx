@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { useJson } from "@/components/useData";
@@ -12,7 +12,11 @@ interface Status {
   mongoOk: boolean;
   env: Record<string, boolean>;
   sync: { lastSyncAt?: string | null; displayName?: string | null } | null;
-  auth?: { enabled: boolean; user: { name: string | null; email: string | null } | null };
+  auth?: {
+    enabled: boolean;
+    signedIn?: boolean;
+    user: { name: string | null; email: string | null } | null;
+  };
 }
 
 interface SummaryLite {
@@ -43,21 +47,29 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
   const [syncing, setSyncing] = useState(false);
 
-  const refreshStatus = useCallback(async () => {
+  /** Fetches status; sends a signed-out user (e.g. an expired session) to the login page. */
+  const fetchStatus = useCallback(async (): Promise<Status | null> => {
     try {
       const res = await fetch("/api/status");
-      if (res.status === 401) {
-        window.location.assign("/login");
-        return;
+      const s = res.ok ? ((await res.json()) as Status) : null;
+      if (res.status === 401 || (s?.auth?.enabled && !s.auth.signedIn)) {
+        router.replace("/login");
+        return null;
       }
-      setStatus(await res.json());
+      return s;
     } catch {
-      /* server not up yet */
+      return null; /* server not up yet */
     }
-  }, []);
+  }, [router]);
+
+  const refreshStatus = useCallback(async () => {
+    const s = await fetchStatus();
+    if (s) setStatus(s);
+  }, [fetchStatus]);
 
   const sync = useCallback(
     async (ifStale?: boolean) => {
@@ -74,16 +86,25 @@ function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    refreshStatus().then(() => {});
-  }, [refreshStatus]);
+    let live = true;
+    fetchStatus().then((s) => {
+      if (live && s) setStatus(s);
+    });
+    return () => {
+      live = false;
+    };
+  }, [fetchStatus]);
 
-  // Once we know the app is configured, keep data fresh in the background.
+  // Once we know the app is configured, keep data fresh in the background. The first run
+  // is scheduled rather than called inline, so a dev-mode effect re-run cancels it.
   useEffect(() => {
-    if (status?.configured) {
-      sync(true);
-      const t = setInterval(() => sync(true), 15 * 60_000);
-      return () => clearInterval(t);
-    }
+    if (!status?.configured) return;
+    const first = setTimeout(() => sync(true), 0);
+    const t = setInterval(() => sync(true), 15 * 60_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
   }, [status?.configured, sync]);
 
   const configured = !!status?.configured;

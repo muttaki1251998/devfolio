@@ -1,15 +1,95 @@
-import { addDays, startOfDay, startOfMonth, startOfWeek, weekLabel } from "./dates";
+import {
+  addDays,
+  addMonths,
+  startOfDay,
+  startOfMonth,
+  startOfQuarter,
+  startOfWeek,
+  startOfYear,
+} from "./dates";
 import { getDb } from "./mongo";
 import { loadSettings } from "./settings";
 import { EventRow, MetricCounts, MetricEventDoc, MetricEventType, TicketDoc } from "./types";
 
-export type Period = "week" | "month" | "all";
+export const PERIODS = ["week", "month", "quarter", "year", "ytd", "all"] as const;
+/** `year` is the rolling last 12 months; `ytd` starts on January 1. */
+export type Period = (typeof PERIODS)[number];
+/** Week → a bar per day, month → per week, anything longer → per month. */
+export type Granularity = "day" | "week" | "month";
 
-function periodStart(period: Period, weekStartsMonday: boolean): Date | null {
+export function isPeriod(p: string | null): p is Period {
+  return !!p && (PERIODS as readonly string[]).includes(p);
+}
+
+function periodStart(period: "week" | "month", weekStartsMonday: boolean): Date {
   const now = new Date();
-  if (period === "week") return startOfWeek(now, weekStartsMonday);
-  if (period === "month") return startOfMonth(now);
-  return null;
+  return period === "week" ? startOfWeek(now, weekStartsMonday) : startOfMonth(now);
+}
+
+/**
+ * The range a period covers and how the chart splits it: a bar per day for the week, per
+ * week for the month, and per month for everything longer. Calendar periods (week, month,
+ * quarter) run to their end so the chart shows how far through them you are; the others
+ * run to now.
+ */
+function periodWindow(
+  period: Period,
+  weekStartsMonday: boolean,
+  now: Date,
+): { start: Date | null; end: Date; granularity: Granularity } {
+  switch (period) {
+    case "week": {
+      const start = startOfWeek(now, weekStartsMonday);
+      return { start, end: addDays(start, 7), granularity: "day" };
+    }
+    case "month": {
+      const start = startOfMonth(now);
+      return { start, end: addMonths(start, 1), granularity: "week" };
+    }
+    case "quarter": {
+      const start = startOfQuarter(now);
+      return { start, end: addMonths(start, 3), granularity: "month" };
+    }
+    case "year":
+      return { start: addMonths(startOfMonth(now), -11), end: now, granularity: "month" };
+    case "ytd":
+      return { start: startOfYear(now), end: now, granularity: "month" };
+    case "all":
+      return { start: null, end: now, granularity: "month" };
+  }
+}
+
+/** Bucket start dates from `from` until `end`; week buckets snap to week boundaries. */
+function bucketStarts(from: Date, end: Date, g: Granularity, weekStartsMonday: boolean): Date[] {
+  const out: Date[] = [];
+  let cur = g === "month" ? startOfMonth(from) : startOfDay(from);
+  while (cur < end) {
+    out.push(cur);
+    cur =
+      g === "day"
+        ? addDays(cur, 1)
+        : g === "week"
+          ? addDays(startOfWeek(cur, weekStartsMonday), 7)
+          : addMonths(cur, 1);
+  }
+  return out;
+}
+
+const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("en-US", o);
+
+function bucketLabel(d: Date, g: Granularity, now: Date): string {
+  const yy = `’${String(d.getFullYear()).slice(2)}`;
+  const otherYear = d.getFullYear() !== now.getFullYear();
+  if (g === "day") return `${fmt(d, { weekday: "short" })} ${d.getDate()}`;
+  if (g === "week") return fmt(d, { month: "short", day: "numeric" });
+  return otherYear ? `${fmt(d, { month: "short" })} ${yy}` : fmt(d, { month: "short" });
+}
+
+function bucketRange(start: Date, end: Date, g: Granularity): string {
+  if (g === "day") return fmt(start, { weekday: "long", month: "short", day: "numeric" });
+  if (g === "month") return fmt(start, { month: "long", year: "numeric" });
+  const last = addDays(end, -1);
+  return `${fmt(start, { month: "short", day: "numeric" })} – ${fmt(last, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 async function joinTickets(owner: string, events: MetricEventDoc[]): Promise<EventRow[]> {
@@ -33,15 +113,16 @@ async function joinTickets(owner: string, events: MetricEventDoc[]): Promise<Eve
   });
 }
 
-export async function eventsSince(owner: string, since: Date | null): Promise<EventRow[]> {
+export async function eventsSince(
+  owner: string,
+  since: Date | null,
+  limit = 1000,
+): Promise<EventRow[]> {
   const db = await getDb();
   const filter = since ? { owner, at: { $gte: since.toISOString() } } : { owner };
-  const events = await db
-    .collection<MetricEventDoc>("events")
-    .find(filter)
-    .sort({ at: -1 })
-    .limit(1000)
-    .toArray();
+  let cursor = db.collection<MetricEventDoc>("events").find(filter).sort({ at: -1 });
+  if (limit > 0) cursor = cursor.limit(limit);
+  const events = await cursor.toArray();
   return joinTickets(owner, events);
 }
 
@@ -67,40 +148,69 @@ export function countRows(rows: EventRow[]): MetricCounts {
   return counts;
 }
 
-export interface WeeklyPoint {
+export interface SeriesPoint {
   label: string;
-  weekStart: string;
+  /** Human-readable span, for the tooltip. */
+  range: string;
+  start: string;
   pregroomed: number;
   sentToTesting: number;
+  qaBounces: number;
+  /** Bucket starts after now (later days/weeks of the current week, month or quarter). */
+  future: boolean;
 }
 
 export async function dashboardData(owner: string, period: Period) {
   const settings = await loadSettings(owner);
-  const since = periodStart(period, settings.weekStartsMonday);
-  const rows = await eventsSince(owner, since);
+  const now = new Date();
+  let firstEventAt: Date | null = null;
+  if (period === "all") {
+    const db = await getDb();
+    const first = await db
+      .collection<MetricEventDoc>("events")
+      .find({ owner })
+      .sort({ at: 1 })
+      .limit(1)
+      .next();
+    firstEventAt = first ? new Date(first.at) : null;
+  }
+  const { start, end, granularity } = periodWindow(
+    period,
+    settings.weekStartsMonday,
+    now,
+  );
+
+  // Unlimited: counts and the chart must see every event in the range, not the newest 1000.
+  const rows = await eventsSince(owner, start, 0);
   const counts = countRows(rows);
 
-  // Last 12 weeks series, independent of the selected period.
-  const now = new Date();
-  const firstWeek = startOfWeek(addDays(now, -7 * 11), settings.weekStartsMonday);
-  const allRecent = await eventsSince(owner, firstWeek);
-  const series: WeeklyPoint[] = [];
-  for (let i = 0; i < 12; i++) {
-    const ws = addDays(firstWeek, i * 7);
-    const we = addDays(ws, 7);
-    const inWeek = allRecent.filter((r) => {
+  const starts = bucketStarts(start ?? firstEventAt ?? now, end, granularity, settings.weekStartsMonday);
+  const series: SeriesPoint[] = starts.map((bs, i) => {
+    const be = starts[i + 1] ?? end;
+    const inBucket = rows.filter((r) => {
       const at = new Date(r.at);
-      return at >= ws && at < we;
+      return at >= bs && at < be;
     });
-    series.push({
-      label: weekLabel(ws),
-      weekStart: ws.toISOString(),
-      pregroomed: inWeek.filter((r) => r.type === "pregroomed").length,
-      sentToTesting: inWeek.filter((r) => r.type === "sent_to_testing").length,
-    });
-  }
+    return {
+      label: bucketLabel(bs, granularity, now),
+      range: bucketRange(bs, be, granularity),
+      start: bs.toISOString(),
+      pregroomed: inBucket.filter((r) => r.type === "pregroomed").length,
+      sentToTesting: inBucket.filter((r) => r.type === "sent_to_testing").length,
+      qaBounces: inBucket.filter((r) => r.type === "qa_bounce").length,
+      future: bs > now,
+    };
+  });
 
-  return { counts, rows: rows.slice(0, 200), series, period };
+  return {
+    counts,
+    rows: rows.slice(0, 200),
+    totalEvents: rows.length,
+    series,
+    granularity,
+    period,
+    range: { start: (start ?? starts[0] ?? now).toISOString(), end: end.toISOString() },
+  };
 }
 
 export async function countsForPeriod(

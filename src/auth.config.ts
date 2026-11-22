@@ -1,7 +1,8 @@
 import type { NextAuthConfig } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Atlassian from "next-auth/providers/atlassian";
-import { isExpired, refreshTokens, resolveSite } from "@/lib/atlassian-oauth";
+import { resolveSite } from "@/lib/atlassian-oauth";
+import { getUsableTokens, saveTokens } from "@/lib/token-store";
 
 export interface ProviderInfo {
   id: "atlassian";
@@ -27,8 +28,13 @@ export function allowedEmails(): string[] {
     .filter(Boolean);
 }
 
-/** Fields kept in the encrypted session cookie only; never copied to the browser-facing session. */
+/**
+ * Fields kept in the encrypted session cookie; never copied to the browser-facing session.
+ * The cookie only identifies the user — OAuth tokens live in Mongo (`lib/token-store.ts`),
+ * because rotated refresh tokens can't be written back to a cookie on every request path.
+ */
 export interface JiraTokenFields {
+  /** Legacy: sessions issued before the token store carried these; stripped on next read. */
   accessToken?: string;
   refreshToken?: string;
   expiresAt?: number;
@@ -71,10 +77,6 @@ export const authConfig: NextAuthConfig = {
     async jwt({ token, account, profile }) {
       const t = token as AppJWT;
       if (account) {
-        t.accessToken = account.access_token;
-        t.refreshToken = account.refresh_token;
-        t.expiresAt = account.expires_at;
-        t.error = undefined;
         // token.sub is a random UUID in Auth.js v5 without a DB adapter; the stable
         // identity is Atlassian's account_id, from the userinfo profile or /me.
         let accountId = (profile as { account_id?: string } | undefined)?.account_id;
@@ -92,21 +94,32 @@ export const authConfig: NextAuthConfig = {
           : null;
         t.cloudId = site?.cloudId;
         t.siteUrl = site?.siteUrl;
+        t.error = "RefreshFailed";
+        if (accountId && account.access_token && account.refresh_token) {
+          try {
+            await saveTokens(accountId, {
+              accessToken: account.access_token,
+              refreshToken: account.refresh_token,
+              expiresAt: account.expires_at ?? 0,
+              cloudId: site?.cloudId,
+              siteUrl: site?.siteUrl,
+            });
+            t.error = undefined;
+          } catch {
+            // Mongo unreachable: signed in, but without a stored Jira credential.
+          }
+        }
         return t;
       }
-      if (!t.accessToken || !isExpired(t.expiresAt) || t.error) return t;
-      if (!t.refreshToken) {
-        t.error = "RefreshFailed";
-        return t;
-      }
-      try {
-        const next = await refreshTokens(t.refreshToken);
-        t.accessToken = next.accessToken;
-        t.refreshToken = next.refreshToken;
-        t.expiresAt = next.expiresAt;
-      } catch {
-        t.error = "RefreshFailed";
-      }
+      // Tokens no longer ride in the cookie; drop them from pre-token-store sessions.
+      delete t.accessToken;
+      delete t.refreshToken;
+      delete t.expiresAt;
+      if (!t.accountId) return t;
+      // The stored chain is the truth: this also recovers a session whose earlier refresh
+      // failed transiently, and refreshes (and persists the rotation) when expired.
+      const stored = await getUsableTokens(t.accountId).catch(() => null);
+      t.error = stored ? undefined : "RefreshFailed";
       return t;
     },
     session({ session, token }) {

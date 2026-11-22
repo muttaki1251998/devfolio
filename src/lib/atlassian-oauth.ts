@@ -16,11 +16,19 @@ export function isExpired(expiresAt: number | undefined): boolean {
   return Date.now() / 1000 >= expiresAt - EXPIRY_SKEW_SECONDS;
 }
 
-/** Refresh tokens rotate, so each old token is exchanged at most once and the result is shared. */
-const inflight = new Map<string, { promise: Promise<TokenSet>; at: number }>();
-const SHARE_WINDOW_MS = 10 * 60_000;
+/**
+ * Atlassian rejected the refresh token itself (consumed, revoked or expired). Rotating
+ * refresh tokens are single-use, so the chain is dead until the user signs in again.
+ * Network and 5xx failures throw a plain Error instead and are worth retrying.
+ */
+export class RefreshRejectedError extends Error {}
 
-async function exchange(refreshToken: string): Promise<TokenSet> {
+/**
+ * Exchanges a refresh token once. Callers must not replay `refreshToken` afterwards:
+ * Atlassian invalidates it and returns a new one. Go through `token-store.ts`, which
+ * persists the rotated pair and de-duplicates concurrent refreshes per account.
+ */
+export async function exchangeRefreshToken(refreshToken: string): Promise<TokenSet> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -32,7 +40,10 @@ async function exchange(refreshToken: string): Promise<TokenSet> {
     }),
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`Atlassian token refresh failed: ${res.status}`);
+  if (!res.ok) {
+    const msg = `Atlassian token refresh failed: ${res.status}`;
+    throw res.status >= 400 && res.status < 500 ? new RefreshRejectedError(msg) : new Error(msg);
+  }
   const j = (await res.json()) as {
     access_token: string;
     refresh_token?: string;
@@ -43,17 +54,6 @@ async function exchange(refreshToken: string): Promise<TokenSet> {
     refreshToken: j.refresh_token || refreshToken,
     expiresAt: Math.floor(Date.now() / 1000) + j.expires_in,
   };
-}
-
-export function refreshTokens(refreshToken: string): Promise<TokenSet> {
-  const now = Date.now();
-  for (const [k, v] of inflight) if (now - v.at > SHARE_WINDOW_MS) inflight.delete(k);
-  const hit = inflight.get(refreshToken);
-  if (hit) return hit.promise;
-  const promise = exchange(refreshToken);
-  inflight.set(refreshToken, { promise, at: now });
-  promise.catch(() => inflight.delete(refreshToken));
-  return promise;
 }
 
 export interface AccessibleResource {

@@ -24,47 +24,73 @@ In commit order:
    Also fixed in this commit: `isMine` reconciliation (incremental syncs used to wipe and
    re-mark only the batch, undercounting My Tickets).
 5. **Published to GitHub** (2026-11-22) — history checked clean of `.env*`/secrets first.
+6. **Dashboard periods** (2026-11-22) — This week / This month / This quarter / Last 12 months /
+   Year to date / All time. The chart covers the selected period: a bar per day for the week,
+   per week for the month, per month for everything longer (calendar periods include their
+   not-yet-reached buckets, empty). Counts and chart now see every event in range (they were
+   capped at the newest 1000). Verified in the browser against real data: each period's
+   chart bars sum to its stat tiles.
 
-## Known bug — the next piece of work
+## In progress — hourly OAuth token refresh (fix implemented, live check pending)
 
-**Hourly OAuth token refresh fails.** Verified live: a session aged past one hour shows
-`authError: true` on `/api/status`, while syncs still "pass" only because of the env-token
-fallback. Any OAuth-only deployment loses sync an hour after login.
+**The bug.** A session aged past one hour showed `authError: true` on `/api/status`; syncs
+still "passed" only through the env-token fallback, so any OAuth-only deployment lost sync an
+hour after login. Atlassian refresh tokens are single-use and rotate on every refresh; we kept
+them only in the session cookie plus an in-memory map, request paths that can't rewrite
+cookies lost the rotated token, and the next refresh replayed a consumed one, killing the
+chain.
 
-Mechanism (detail in ARCHITECTURE → Token refresh): Atlassian refresh tokens are single-use
-and rotate on every refresh; we persist them only in the session cookie plus a 10-minute
-in-memory map, and request paths that cannot rewrite cookies lose the rotated token. The next
-refresh replays a consumed token and Atlassian kills the chain.
+**The fix (committed 2026-11-22).** Tokens now live in Mongo, keyed by accountId;
+the cookie only identifies the user.
 
-### Designed fix (not yet implemented)
+1. `src/lib/token-store.ts` — collection `oauthTokens`, `_id` = accountId, doc
+   `{accessToken, refreshToken, expiresAt, cloudId, siteUrl, dead?, updatedAt}`.
+   `getUsableTokens(accountId)` returns an unexpired set, refreshing when needed: one refresh
+   per account at a time (in-flight map keyed by accountId), the rotated pair written back
+   conditionally on the token that was consumed. A 4xx from Atlassian marks the chain `dead`
+   (no further refresh attempts) unless the store already holds a newer pair; network/5xx
+   errors throw and are retried on the next call. `saveTokens` (sign-in) replaces the chain
+   and clears `dead`.
+2. `src/auth.config.ts` `jwt` callback — at sign-in, saves tokens to the store and keeps only
+   `accountId`/`cloudId`/`siteUrl` in the cookie. On every later read it strips legacy token
+   fields from old cookies and sets `error` from `getUsableTokens` — so a recovered chain
+   clears the flag, and `authError` reflects the store, not a sticky cookie bit.
+3. `src/lib/jira-auth.ts` — resolves the owner via `resolveOwner` and reads the store; no
+   longer calls `auth()` or refreshes from the cookie.
+4. `src/lib/atlassian-oauth.ts` — `refreshTokens` + its refresh-token-keyed in-flight map are
+   gone; `exchangeRefreshToken` does a single exchange and throws `RefreshRejectedError` on 4xx.
+5. `src/proxy.ts` — `authEnabled` inlined so the middleware no longer imports `auth.config`
+   (and through it the Mongo driver).
 
-Persist tokens in Mongo, keyed by accountId. The cookie then only identifies the user; Mongo
-holds the credentials.
+**Verified:** `tsc` clean; lint unchanged (same 5 pre-existing problems). Against the dev
+server with minted session cookies for throwaway accountIds: a valid stored set clears a
+legacy cookie's stale `RefreshFailed`; an expired set with a rejected refresh token reports
+`authError:true`, marks the doc `dead`, and the next call returns without contacting
+Atlassian; no stored chain reports `authError:true`. Test docs were deleted afterwards.
 
-1. New `src/lib/token-store.ts`: collection `oauthTokens`, `_id` = accountId, doc
-   `{accessToken, refreshToken, expiresAt, cloudId, siteUrl, updatedAt}`.
-2. `jwt` callback (`src/auth.config.ts`): write tokens to the store at sign-in; on expiry or
-   `RefreshFailed`, try recovering a working set from the store (and clear the error flag when
-   recovery works).
-3. `src/lib/jira-auth.ts`: route every refresh through the store — read the current refresh
-   token from Mongo, refresh, write the rotated pair back, with the in-flight de-dup map keyed
-   by **accountId** (not by refresh token).
-4. `src/proxy.ts` currently imports `authEnabled` from `auth.config`; inline the env check
-   there instead, so `auth.config` may import mongo without dragging the driver into the
-   middleware bundle.
-5. After it lands, the author must sign in once more — the current refresh chain is already
-   consumed/dead. Verify by letting a session age past one hour and checking `/api/status`
-   stays `authError:false` **without** `JIRA_API_TOKEN` set.
+**Still to do:**
 
-## Smaller cleanups
+- ~~Sign in once more~~ — done 2026-11-22; the author's chain is in `oauthTokens`.
+- The real check: let a session age past one hour, then confirm `/api/status` stays
+  `authError:false` and a sync succeeds **without** `JIRA_API_TOKEN` set.
 
-- README "Privacy" section still says "single-user" — multi-user landed; soften the wording.
-- `Shell.tsx` has a pre-existing `react-hooks/set-state-in-effect` lint warning in the sync
-  effect.
-- The Atlassian consent screen reappears on every login (`prompt=consent`, needed for refresh
-  tokens). Acceptable, but worth a note on the login page eventually. The OAuth app also shows
-  Atlassian's "development mode" banner until it is moved to production in the developer
-  console.
+## Smaller cleanups — done
+
+- README "Privacy" no longer says "single-user"; it describes per-account data and where
+  tokens live.
+- `npx eslint src` is clean. The two `set-state-in-effect` spots were fixed properly:
+  `app/page.tsx` reads the clock via a new `useMounted` hook (`useSyncExternalStore`, false
+  during prerender/hydration) instead of `setNow` in an effect; `Shell.tsx` sets status in the
+  fetch's `.then` and schedules the first background sync with `setTimeout(…, 0)` (cleared on
+  cleanup, so a dev-mode effect re-run no longer double-syncs). `window.location.assign` became
+  `router.replace`, and a stale `eslint-disable` in `lib/mongo.ts` is gone.
+- `/api/status` really never 401s now: `proxy.ts`'s matcher skips it, and the route returns
+  only `{configured:false, auth:{enabled, signedIn:false}}` to signed-out callers (no env
+  flags, no Jira URL). Signed-in responses gained `auth.signedIn`. `Shell.tsx` sends a
+  signed-out user to `/login` when status says so (expired session mid-visit).
+- Login page explains the consent screen that appears on every sign-in.
+- Still open, needs the author: move the Atlassian OAuth app to production in the developer
+  console to drop the "development mode" banner.
 
 ## Parked / roadmap
 
@@ -79,9 +105,11 @@ holds the credentials.
 
 ## Working on this repo
 
-- `npm run dev`, app on http://localhost:3000. First sync on a long history takes ~a minute.
+- `npm run dev`, app on http://localhost:3000 (the Atlassian OAuth callback is registered
+  for :3000, so other ports can't complete a login). First sync on a long history takes ~a minute.
 - Secrets live only in `.env.local` (gitignored). Never print or commit them; verify presence
   by name, not value.
 - When touching sync or metrics, re-validate against a real changelog before trusting counts —
   that discipline caught every data bug so far.
-- Quick health check: `GET /api/status` → `{signedIn, authError, lastSync, ...}`.
+- Quick health check: `GET /api/status` → `{configured, sync, auth: {enabled, signedIn, authError}, ...}`.
+  It never 401s; signed-out callers get only the `auth` block.

@@ -31,3 +31,22 @@ export function daysBetween(a: Date, b: Date): number {
 export function weekLabel(weekStart: Date): string {
   return weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+
+export function addMonths(d: Date, months: number): Date {
+  const x = new Date(d);
+  x.setDate(1); // avoid Jan 31 + 1 month rolling into March
+  x.setMonth(x.getMonth() + months);
+  return x;
+}
+
+export function startOfQuarter(d: Date): Date {
+  const x = startOfMonth(d);
+  x.setMonth(x.getMonth() - (x.getMonth() % 3));
+  return x;
+}
+
+export function startOfYear(d: Date): Date {
+  const x = startOfMonth(d);
+  x.setMonth(0);
+  return x;
+}

@@ -8,7 +8,12 @@ export interface AppStatus {
   env: Record<string, boolean>;
   sync: { lastSyncAt?: string | null; displayName?: string | null } | null;
   jiraBaseUrl?: string | null;
-  auth?: { enabled: boolean; user: { name: string | null; email: string | null } | null; authError?: boolean };
+  auth?: {
+    enabled: boolean;
+    signedIn?: boolean;
+    user: { name: string | null; email: string | null } | null;
+    authError?: boolean;
+  };
 }
 
 /** Browse URL for a ticket on the configured Jira site, or null while status loads. */

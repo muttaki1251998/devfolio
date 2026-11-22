@@ -6,8 +6,22 @@ import { pingMongo } from "@/lib/mongo";
 import { resolveOwner } from "@/lib/owner";
 import { getSyncState } from "@/lib/sync";
 
-
+/**
+ * Lightweight poll for the shell. Never 401s (the proxy lets it through): signed-out callers
+ * get `auth.signedIn: false` and nothing about the deployment beyond whether login is on.
+ */
 export async function GET(req: NextRequest) {
+  const authOn = authEnabled();
+  const session = authOn ? await auth() : null;
+  // Same rule as the proxy: signed in means a session with an Atlassian accountId.
+  const signedIn = !authOn || !!session?.accountId;
+  if (!signedIn) {
+    return NextResponse.json({
+      configured: false,
+      auth: { enabled: true, signedIn: false, user: null, authError: false },
+    });
+  }
+
   const env = envStatus();
   let mongoOk = false;
   let sync = null;
@@ -21,18 +35,15 @@ export async function GET(req: NextRequest) {
         : null;
     }
   }
-  const authOn = authEnabled();
-  const session = authOn ? await auth() : null;
   const user = session?.user
     ? { name: session.user.name ?? null, email: session.user.email ?? null }
     : null;
-  const authError = !!session?.authError;
   return NextResponse.json({
     env,
     mongoOk,
     configured: isConfigured() && mongoOk,
     sync,
-    auth: { enabled: authOn, user, authError },
+    auth: { enabled: authOn, signedIn: true, user, authError: !!session?.authError },
     jiraBaseUrl:
       process.env.JIRA_BASE_URL?.replace(/[/]+$/, "") || session?.jiraSiteUrl || null,
   });

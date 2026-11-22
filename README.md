@@ -79,7 +79,7 @@ When login is on, every page and API route except `/login` and `/api/auth/*` req
 
 ## Privacy
 
-Single-user and self-hosted by design. Your Jira credentials live in `.env.local` on your machine; ticket metadata lives in a MongoDB you control. Nothing is sent anywhere else.
+Self-hosted by design. With login on, each person signs in with their own Atlassian account and sees only their own data: tickets, events, goals and settings are stored per Atlassian account in a MongoDB you control, alongside each user's OAuth tokens. An env API token, if you use one, stays in `.env.local` on your server. Nothing is sent anywhere except your Jira site and Atlassian's auth endpoints.
 
 ## Roadmap
 

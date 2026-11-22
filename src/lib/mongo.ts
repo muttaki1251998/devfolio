@@ -1,7 +1,6 @@
 import { Db, MongoClient } from "mongodb";
 
 declare global {
-  // eslint-disable-next-line no-var
   var _devfolioMongo: Promise<MongoClient> | undefined;
 }
 

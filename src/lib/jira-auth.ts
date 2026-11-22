@@ -1,38 +1,21 @@
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
-import { auth } from "@/auth";
 import { authEnabled } from "@/auth.config";
-import type { AppJWT } from "@/auth.config";
-import { isExpired, refreshTokens } from "./atlassian-oauth";
 import { hasBasicCreds, jiraEnv } from "./env";
 import type { JiraAuth } from "./jira";
+import { LOCAL_OWNER, resolveOwner } from "./owner";
+import { getUsableTokens } from "./token-store";
 
 export type ResolvedJiraAuth =
   | { ok: true; auth: JiraAuth }
   | { ok: false; status: number; error: string };
 
+/** The signed-in user's stored OAuth token, refreshed (and the rotation persisted) if expired. */
 async function oauthFromSession(req: NextRequest): Promise<JiraAuth | null> {
-  // Running the session lookup first lets the jwt callback rotate the tokens and
-  // re-issue the cookie; the refresh below then reuses that same exchange.
-  await auth();
-  const secure =
-    req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";
-  const token = (await getToken({
-    req,
-    secret: process.env.AUTH_SECRET,
-    secureCookie: secure,
-  })) as AppJWT | null;
-  if (!token?.accessToken || !token.cloudId || token.error) return null;
-  if (!isExpired(token.expiresAt)) {
-    return { mode: "oauth", cloudId: token.cloudId, accessToken: token.accessToken };
-  }
-  if (!token.refreshToken) return null;
-  try {
-    const fresh = await refreshTokens(token.refreshToken);
-    return { mode: "oauth", cloudId: token.cloudId, accessToken: fresh.accessToken };
-  } catch {
-    return null;
-  }
+  const accountId = await resolveOwner(req);
+  if (!accountId || accountId === LOCAL_OWNER) return null;
+  const stored = await getUsableTokens(accountId).catch(() => null);
+  if (!stored?.cloudId) return null;
+  return { mode: "oauth", cloudId: stored.cloudId, accessToken: stored.accessToken };
 }
 
 /** Signed-in OAuth token first, then env API token, otherwise a clear error. */

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Reveal from "@/components/Reveal";
 import SetupCard from "@/components/SetupCard";
 import TicketLink from "@/components/TicketLink";
 import { useJson, useStatus } from "@/components/useData";
+import { useMounted } from "@/components/useMounted";
 import type { EventRow } from "@/lib/types";
 
 interface Summary {
@@ -46,11 +47,9 @@ export default function HomePage() {
   const status = useStatus();
   const { data } = useJson<Summary>(status?.configured ? "/api/summary" : null);
   const [copied, setCopied] = useState(false);
-  // Current time is read after mount so prerendering stays deterministic.
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-  }, []);
+  // Current time is read only after hydration so prerendering stays deterministic.
+  const mounted = useMounted();
+  const now = useMemo(() => (mounted ? new Date() : null), [mounted]);
 
   const plan = useMemo(() => {
     if (!data) return null;

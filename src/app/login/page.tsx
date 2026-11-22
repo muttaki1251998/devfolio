@@ -112,6 +112,12 @@ async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: s
         <p className="text-[13px] leading-[1.6] text-muted">
           Your Atlassian account both signs you in and authorizes the Jira reads — no API token needed.
         </p>
+        {providers.length > 0 && (
+          <p className="mt-3 text-[13px] leading-[1.6] text-muted">
+            Atlassian asks you to approve access each time you sign in. That approval is what lets
+            Devfolio keep syncing in the background after the first hour.
+          </p>
+        )}
       </div>
     </>
   );

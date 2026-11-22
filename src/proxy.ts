@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { authEnabled } from "@/auth.config";
+
+// Same check as authEnabled() in auth.config, inlined so the middleware bundle doesn't pull
+// in auth.config's imports (the Mongo token store and its driver).
+const authEnabled = () =>
+  !!(process.env.AUTH_SECRET && process.env.AUTH_ATLASSIAN_ID && process.env.AUTH_ATLASSIAN_SECRET);
 
 export async function proxy(req: NextRequest) {
   if (!authEnabled()) return NextResponse.next();
@@ -20,5 +24,7 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|login).*)"],
+  // /api/status is open on purpose: it reports whether you are signed in (and says nothing
+  // else when you are not), so the client can tell an expired session from an outage.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|api/status|login).*)"],
 };
