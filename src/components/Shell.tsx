@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useJson } from "@/components/useData";
 import type { MetricCounts } from "@/lib/types";
 
@@ -49,6 +49,56 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
+  // The item clicked last, so the highlight moves on click instead of after the page loads.
+  // It only counts while we're still on the page it was clicked from.
+  const [pending, setPending] = useState<{ href: string; from: string } | null>(null);
+  const activeHref = pending && pending.from === pathname ? pending.href : pathname;
+  const navRef = useRef<HTMLElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+
+  /** Moves the highlight onto the active item; `animate: false` jumps there. */
+  const placeIndicator = useCallback((animate: boolean) => {
+    const nav = navRef.current;
+    const ind = indicatorRef.current;
+    if (!nav || !ind) return;
+    const el = nav.querySelector<HTMLElement>("[data-active]");
+    if (!el) {
+      ind.style.opacity = "0";
+      return;
+    }
+    if (!animate) ind.style.transition = "none";
+    ind.style.transform = `translateY(${el.offsetTop}px)`;
+    ind.style.height = `${el.offsetHeight}px`;
+    ind.style.opacity = "1";
+    if (!animate) {
+      void ind.offsetHeight; // commit the jump before transitions come back
+      ind.style.transition = "";
+    }
+  }, []);
+
+  // Slide to the active item when it changes; the very first placement jumps.
+  const placedOnce = useRef(false);
+  useLayoutEffect(() => {
+    placeIndicator(placedOnce.current);
+    placedOnce.current = true;
+  }, [activeHref, placeIndicator]);
+
+  // Late font loads or a resize change item heights; follow without animating. Set up once:
+  // a ResizeObserver fires as soon as it observes, which would cancel a slide in progress.
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    let first = true;
+    const ro = new ResizeObserver(() => {
+      if (first) {
+        first = false;
+        return;
+      }
+      placeIndicator(false);
+    });
+    ro.observe(nav);
+    return () => ro.disconnect();
+  }, [placeIndicator]);
   const [syncing, setSyncing] = useState(false);
 
   /** Fetches status; sends a signed-out user (e.g. an expired session) to the login page. */
@@ -154,23 +204,28 @@ function AppShell({ children }: { children: React.ReactNode }) {
           devfolio
         </Link>
 
-        <nav aria-label="Main" className="mt-10 flex flex-col gap-0.5">
+        <nav ref={navRef} aria-label="Main" className="nav mt-10 flex flex-col gap-0.5">
+          <span ref={indicatorRef} aria-hidden className="nav-indicator" />
           {NAV.map((n) => {
-            const active = pathname === n.href;
+            const active = activeHref === n.href;
             const b = badge(n.href);
             return (
               <Link
                 key={n.href}
                 href={n.href}
-                aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-3 py-2.5 text-[15px] ${
-                  active
-                    ? "border-l-[3px] border-accent bg-navactive pl-[11px] pr-3.5 font-semibold text-ink"
-                    : "px-3.5 font-medium text-muted hover:text-deep"
-                }`}
+                aria-current={pathname === n.href ? "page" : undefined}
+                data-active={active ? "" : undefined}
+                onClick={(e) => {
+                  // Modified clicks open a new tab; this page's highlight shouldn't move.
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  setPending({ href: n.href, from: pathname });
+                }}
+                className="nav-link"
               >
-                {n.label}
-                {b && <span className="ml-auto text-[13px] font-normal text-muted">{b}</span>}
+                <span className="nav-link-inner">
+                  {n.label}
+                  {b && <span className="ml-auto text-[13px] font-normal text-muted">{b}</span>}
+                </span>
               </Link>
             );
           })}

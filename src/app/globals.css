@@ -72,6 +72,91 @@ a {
   display: flex;
   flex-direction: column;
 }
+/* Sidebar nav: one highlight slides between items; hover sweeps a wash in from the left. */
+.nav {
+  --nav-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+.nav-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  opacity: 0;
+  background: var(--nav-active);
+  border-left: 3px solid var(--accent);
+  pointer-events: none;
+  will-change: transform;
+  transition:
+    transform 480ms var(--nav-ease),
+    height 480ms var(--nav-ease),
+    opacity 200ms ease;
+}
+.nav-link {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: color 220ms ease;
+}
+.nav-link::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--nav-active);
+  opacity: 0.55;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 360ms var(--nav-ease);
+}
+.nav-link:hover {
+  color: var(--accent-deep);
+}
+.nav-link:hover::before {
+  transform: scaleX(1);
+}
+.nav-link[data-active] {
+  color: var(--ink);
+  font-weight: 600;
+}
+.nav-link[data-active]::before {
+  opacity: 0;
+}
+.nav-link-inner {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  transition: transform 280ms var(--nav-ease);
+}
+.nav-link:hover .nav-link-inner {
+  transform: translateX(4px);
+}
+.nav-link:active .nav-link-inner {
+  transform: translateX(4px) scale(0.96);
+  transition-duration: 90ms;
+}
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-indicator,
+  .nav-link::before,
+  .nav-link-inner {
+    transition: none;
+  }
+  .nav-link:hover .nav-link-inner,
+  .nav-link:active .nav-link-inner {
+    transform: none;
+  }
+}
+
 .main-area {
   min-width: 0;
   flex: 1 1 auto;

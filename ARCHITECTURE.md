@@ -179,6 +179,9 @@ Rules that keep this safe:
   `#C2551F` (deep `#A84314`), hairline rules instead of cards, Fraunces light numerals, flat
   woodcut sun motif. **No gradients, no rounded corners on the sidebar panel.** Tokens live in
   `src/app/globals.css`.
+- Sidebar nav (`Shell.tsx`, `.nav*` in `globals.css`): one `.nav-indicator` element slides to
+  the item marked `data-active` (measured in a layout effect), moving on click rather than after
+  the route loads; hover/press are pure CSS. Honors `prefers-reduced-motion`.
 - GSAP `Reveal`/`CountUp` wrap content; note they leave DOM present but visually hidden until
   the animation runs (affects headless testing — query the DOM, don't screenshot).
 
