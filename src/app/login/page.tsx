@@ -47,7 +47,7 @@ function Sun() {
 }
 
 const ERROR_TEXT: Record<string, string> = {
-  AccessDenied: "That account isn’t on this dashboard’s allowlist. Try the account you set up for it.",
+  AccessDenied: "This Atlassian account doesn’t have access to Jiramorning. Sign in with your work account, or ask whoever runs Jiramorning to add you.",
 };
 
 async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

@@ -24,7 +24,9 @@ export async function resolveJiraAuth(req: NextRequest): Promise<ResolvedJiraAut
     const oauth = await oauthFromSession(req);
     if (oauth) return { ok: true, auth: oauth };
   }
-  if (hasBasicCreds()) {
+  // With login on, each account reads Jira only with its own token. The env API token belongs
+  // to one person, so falling back to it would show that person's Jira to someone else.
+  if (!authEnabled() && hasBasicCreds()) {
     const { baseUrl, email, token } = jiraEnv();
     return { ok: true, auth: { mode: "basic", baseUrl, email, token } };
   }
@@ -32,7 +34,7 @@ export async function resolveJiraAuth(req: NextRequest): Promise<ResolvedJiraAut
     ok: false,
     status: 409,
     error: authEnabled()
-      ? "No Jira credentials: sign in again with Atlassian (the session has no usable Jira token or the site could not be matched to JIRA_BASE_URL), or set JIRA_EMAIL and JIRA_API_TOKEN."
+      ? "No Jira credentials: sign out and sign in again with Atlassian (the session has no usable Jira token, or the site could not be matched to JIRA_BASE_URL)."
       : "No Jira credentials: set JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN, or enable Atlassian login.",
   };
 }

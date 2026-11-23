@@ -64,7 +64,8 @@ When on:
 - The login doubles as the Jira credential: the access token is used as a Bearer token against
   `api.atlassian.com/ex/jira/{cloudId}`, with the site resolved from `accessible-resources`
   (matched against `JIRA_BASE_URL`).
-- The allowlist is `ALLOWED_EMAILS`, falling back to `JIRA_EMAIL`. Rejection happens in the
+- The allowlist is `ALLOWED_EMAILS` (falling back to `JIRA_EMAIL`) plus any domain in
+  `ALLOWED_DOMAINS`; an email Atlassian marks unverified is refused. Rejection happens in the
   `signIn` callback, after Atlassian authenticates.
 
 ### Identity: accountId, never `token.sub`

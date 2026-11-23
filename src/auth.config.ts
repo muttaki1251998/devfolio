@@ -28,6 +28,22 @@ export function allowedEmails(): string[] {
     .filter(Boolean);
 }
 
+/** Email domains whose accounts may sign in, e.g. `ALLOWED_DOMAINS=example.com`. */
+export function allowedDomains(): string[] {
+  return (process.env.ALLOWED_DOMAINS ?? "")
+    .split(",")
+    .map((d) => d.trim().toLowerCase().replace(/^@/, ""))
+    .filter(Boolean);
+}
+
+/** Listed in ALLOWED_EMAILS (or JIRA_EMAIL), or on a domain in ALLOWED_DOMAINS. */
+export function isAllowedEmail(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  if (allowedEmails().includes(e)) return true;
+  const domain = e.split("@")[1];
+  return !!domain && allowedDomains().includes(domain);
+}
+
 /**
  * Fields kept in the encrypted session cookie; never copied to the browser-facing session.
  * The cookie only identifies the user — OAuth tokens live in Mongo (`lib/token-store.ts`),
@@ -72,7 +88,9 @@ export const authConfig: NextAuthConfig = {
     signIn({ profile, user }) {
       const email = (user?.email ?? profile?.email ?? "").toLowerCase();
       if (!email) return false;
-      return allowedEmails().includes(email);
+      // A domain match is only as good as the email: refuse one Atlassian hasn't verified.
+      if ((profile as { email_verified?: boolean } | undefined)?.email_verified === false) return false;
+      return isAllowedEmail(email);
     },
     async jwt({ token, account, profile }) {
       const t = token as AppJWT;

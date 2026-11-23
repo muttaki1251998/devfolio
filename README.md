@@ -73,9 +73,9 @@ The same login is the Jira credential: the OAuth token is kept in the encrypted 
 3. **Authorization**: under OAuth 2.0 (3LO) set the callback URL to `http://localhost:3000/api/auth/callback/atlassian` (plus your deployed origin if you host it).
 4. **Env vars**: copy the Client ID and Secret from Settings into `AUTH_ATLASSIAN_ID` and `AUTH_ATLASSIAN_SECRET`. Set `AUTH_SECRET` with `npx auth secret` (or `openssl rand -base64 32`).
 5. **Site**: set `JIRA_BASE_URL` (recommended) so the login picks the right Jira site. If it is unset and your account can access exactly one site, that site is used.
-6. **Allowlist**: set `ALLOWED_EMAILS` to a comma-separated list (case-insensitive). If it is unset, only `JIRA_EMAIL` may sign in. Any other account is rejected at the login page, even if it authenticates successfully with Atlassian.
+6. **Allowlist**: set `ALLOWED_DOMAINS` to let in every account on an email domain (for example `example.com`), and/or `ALLOWED_EMAILS` to a comma-separated list of addresses (both case-insensitive). If `ALLOWED_EMAILS` is unset, `JIRA_EMAIL` is the only listed address. Any other account is rejected at the login page, even if it authenticates successfully with Atlassian.
 
-When login is on, every page and API route except `/login` and `/api/auth/*` requires a session. A sync uses the signed-in user's token first and falls back to `JIRA_EMAIL` plus `JIRA_API_TOKEN` when those are set, so the env API token remains a supported headless option (and the only option when login is off).
+When login is on, every page and API route except `/login` and `/api/auth/*` requires a session. A sync uses only the signed-in user's own token, so each person sees their own Jira. `JIRA_EMAIL` plus `JIRA_API_TOKEN` are used only when login is off.
 
 ## Privacy
 
