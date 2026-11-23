@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Brand } from "@/components/Brand";
 import { useJson } from "@/components/useData";
 import type { MetricCounts } from "@/lib/types";
 
@@ -197,11 +198,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <aside className="rail">
-        <Link
-          href="/"
-          className="font-serif text-2xl font-semibold italic tracking-[-0.02em]"
-        >
-          devfolio
+        <Link href="/" aria-label="jiramorning, home" className="self-start">
+          <Brand />
         </Link>
 
         <nav ref={navRef} aria-label="Main" className="nav mt-10 flex flex-col gap-0.5">

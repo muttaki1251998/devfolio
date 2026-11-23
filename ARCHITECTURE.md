@@ -1,4 +1,4 @@
-# Devfolio — Architecture
+# jiramorning — Architecture
 
 A map of how the system works, written for coding agents and contributors. The README covers
 what the app does and how to set it up; this file covers how the pieces fit and the traps that
@@ -179,6 +179,11 @@ Rules that keep this safe:
   `#C2551F` (deep `#A84314`), hairline rules instead of cards, Fraunces light numerals, flat
   woodcut sun motif. **No gradients, no rounded corners on the sidebar panel.** Tokens live in
   `src/app/globals.css`.
+- Brand: **jiramorning** (renamed from Devfolio). `components/Brand.tsx` draws the rising-sun
+  mark + wordmark; `app/icon.svg` is the favicon (exempted in the proxy matcher, or signed-out
+  pages would get a login redirect for it). Internal names deliberately still say `devfolio`:
+  the default Mongo database (renaming it would orphan existing data), the `devfolio:synced`
+  window event, the `_devfolioMongo` global, and the GitHub repo.
 - Sidebar nav (`Shell.tsx`, `.nav*` in `globals.css`): one `.nav-indicator` element slides to
   the item marked `data-active` (measured in a layout effect), moving on click rather than after
   the route loads; hover/press are pure CSS. Honors `prefers-reduced-motion`.

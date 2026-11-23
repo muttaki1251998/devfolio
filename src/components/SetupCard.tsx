@@ -29,7 +29,7 @@ export default function SetupCard({
         Let’s get you set up<span className="text-accent">.</span>
       </h2>
       <p className="mt-4 text-[15px] leading-relaxed text-muted">
-        Devfolio reads your Jira changelog with your own API token or Atlassian login and keeps a copy in your own
+        Jiramorning reads your Jira changelog with your own API token or Atlassian login and keeps a copy in your own
         MongoDB. Create a <code className="rounded-[3px] bg-inset px-1.5 py-0.5 text-[13px]">.env.local</code>{" "}
         file in the project root with:
       </p>

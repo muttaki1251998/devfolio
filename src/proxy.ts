@@ -26,5 +26,5 @@ export async function proxy(req: NextRequest) {
 export const config = {
   // /api/status is open on purpose: it reports whether you are signed in (and says nothing
   // else when you are not), so the client can tell an expired session from an outage.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|api/status|login).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|api/auth|api/status|login).*)"],
 };

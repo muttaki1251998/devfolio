@@ -72,6 +72,32 @@ a {
   display: flex;
   flex-direction: column;
 }
+/* Brand mark: the sun rises once on load, then its rays come out. */
+.brand-sun {
+  animation: brand-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.brand-rays {
+  transform-origin: 16px 24px;
+  animation: brand-rays 600ms cubic-bezier(0.22, 1, 0.36, 1) 450ms both;
+}
+@keyframes brand-rise {
+  from {
+    transform: translateY(8px);
+  }
+}
+@keyframes brand-rays {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-sun,
+  .brand-rays {
+    animation: none;
+  }
+}
+
 /* Sidebar nav: one highlight slides between items; hover sweeps a wash in from the left. */
 .nav {
   --nav-ease: cubic-bezier(0.22, 1, 0.36, 1);

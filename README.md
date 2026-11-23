@@ -1,8 +1,8 @@
-# ☀ Devfolio
+# ☀ jiramorning
 
 **Look at it before standup.** A personal, self-hosted dashboard for the work you actually do in Jira — counted from the ticket changelog, not from whoever's name happens to be on a field.
 
-Devfolio greets you in the morning, shows what moved since yesterday, drafts your standup, and keeps honest weekly/monthly counts of the two things most workflows never surface:
+Jiramorning greets you in the morning, shows what moved since yesterday, drafts your standup, and keeps honest weekly/monthly counts of the two things most workflows never surface:
 
 - **Pregroomed** — the first time *you* set the analysis field on a ticket
 - **Sent to testing** — the first time *you* set the resolution field
@@ -15,7 +15,7 @@ Both are read from Jira's changelog, so automation writing "...By" fields on you
 - **My Tickets** — open tickets assigned to you, grouped by status, with days-in-status aging
 - **Dashboard** — week / month / to-date counts, story points, clean-handoff rate, a 12-week chart, and the ticket-level events behind every number
 - **Goals** — manual check-off goals, plus auto goals tied to metrics ("Pregroom 10 tickets this week" fills itself in)
-- **Settings** — every field id and status name is editable, so Devfolio adapts to any team's workflow
+- **Settings** — every field id and status name is editable, so Jiramorning adapts to any team's workflow
 
 ## Stack
 
@@ -26,7 +26,7 @@ Next.js (App Router) · MongoDB · GSAP · Recharts · Tailwind CSS. One app, no
 1. **Clone and install**
 
    ```bash
-   git clone <this repo> && cd devfolio
+   git clone <this repo> && cd devfolio   # the repo is still named devfolio
    npm install
    ```
 
@@ -60,11 +60,11 @@ Open any ticket and visit `https://yourteam.atlassian.net/rest/api/3/issue/TICKE
 - A ticket counts **once** per metric, at the first qualifying changelog entry — editing the field ten times is still one pregroom.
 - The **author of the field change** is what counts, not field values. A ticket you pregroomed that an automation later touched is still yours; a ticket someone else pregroomed never becomes yours.
 - **QA bounces** count every testing → rework transition, by any author, on candidate tickets.
-- Devfolio stores only ticket key, summary, status, type, points and timestamps — no descriptions, comments or attachments.
+- Jiramorning stores only ticket key, summary, status, type, points and timestamps — no descriptions, comments or attachments.
 
 ## Login with Atlassian (optional)
 
-By default Devfolio has no sign-in: anyone who can reach the server sees the dashboard. That is fine on localhost. To put it behind "Log in with Atlassian" (OAuth 2.0 3LO), set the variables below in `.env.local` and restart. Login turns on only when `AUTH_SECRET`, `AUTH_ATLASSIAN_ID` and `AUTH_ATLASSIAN_SECRET` are all set; otherwise the app behaves exactly as before and the Log out button stays hidden.
+By default Jiramorning has no sign-in: anyone who can reach the server sees the dashboard. That is fine on localhost. To put it behind "Log in with Atlassian" (OAuth 2.0 3LO), set the variables below in `.env.local` and restart. Login turns on only when `AUTH_SECRET`, `AUTH_ATLASSIAN_ID` and `AUTH_ATLASSIAN_SECRET` are all set; otherwise the app behaves exactly as before and the Log out button stays hidden.
 
 The same login is the Jira credential: the OAuth token is kept in the encrypted session cookie on the server, refreshed automatically, and used for every Jira read, so signed-in users never need a Jira API token.
 

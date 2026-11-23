@@ -46,7 +46,7 @@ export default function SettingsPage() {
         Settings
       </h1>
       <p data-reveal className="mt-3 max-w-[560px] text-sm text-muted">
-        Field ids and statuses that tell Devfolio what to count. Every team’s Jira is different, so
+        Field ids and statuses that tell Jiramorning what to count. Every team’s Jira is different, so
         point these at yours.
       </p>
 

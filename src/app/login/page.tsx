@@ -4,8 +4,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 import { authEnabled, configuredProviders } from "@/auth.config";
+import { Brand } from "@/components/Brand";
 
-export const metadata = { title: "Sign in — Devfolio" };
+export const metadata = { title: "Sign in — jiramorning" };
 
 const STATS = [
   { value: "87", label: "tickets pregroomed", accent: false },
@@ -98,7 +99,7 @@ async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: s
       ) : (
         <div className="mt-3 text-sm leading-[1.6] text-muted">
           <p>
-            Login isn’t configured, so there’s nothing to sign in to. Devfolio is open on this server
+            Login isn’t configured, so there’s nothing to sign in to. Jiramorning is open on this server
             until you add an Atlassian OAuth app in{" "}
             <code className="rounded-[3px] bg-inset px-1.5 py-0.5 text-[13px]">.env.local</code>.
           </p>
@@ -115,7 +116,7 @@ async function SignInPanel({ searchParams }: { searchParams: Promise<{ error?: s
         {providers.length > 0 && (
           <p className="mt-3 text-[13px] leading-[1.6] text-muted">
             Atlassian asks you to approve access each time you sign in. That approval is what lets
-            Devfolio keep syncing in the background after the first hour.
+            Jiramorning keep syncing in the background after the first hour.
           </p>
         )}
       </div>
@@ -132,8 +133,8 @@ export default function LoginPage({
     <div className="flex min-h-screen flex-wrap items-stretch bg-paper">
       <section className="relative flex min-w-0 grow-[999] basis-[560px] flex-col overflow-hidden px-6 pb-[140px] pt-10 sm:px-16 sm:py-[72px]">
         <Sun />
-        <span className="relative font-serif text-[26px] font-semibold italic tracking-[-0.02em]">
-          devfolio
+        <span className="relative">
+          <Brand size="lg" />
         </span>
 
         <div className="relative my-auto py-12">
@@ -144,7 +145,7 @@ export default function LoginPage({
             counted<span className="text-accent">.</span>
           </h1>
           <p className="mt-[22px] max-w-[520px] text-[17px] leading-[1.6] text-muted">
-            Devfolio reads your Jira changelog and greets you each morning with what you pregroomed,
+            Jiramorning reads your Jira changelog and greets you each morning with what you pregroomed,
             what you handed to QA, and what needs a nudge — then drafts your standup for you.
           </p>
 

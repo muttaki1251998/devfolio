@@ -1,4 +1,4 @@
-# Devfolio — Handoff
+# jiramorning — Handoff
 
 Where the work stands, what is known-broken, and what comes next. Companion to
 `ARCHITECTURE.md` (how the system works). Last updated: 2026-11-22.

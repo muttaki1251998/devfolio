@@ -10,8 +10,8 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Devfolio",
-  description: "Your Jira work and your dev portfolio, warm and in one place — before standup.",
+  title: "jiramorning",
+  description: "Your Jira morning paper: what you pregroomed, what you handed to QA, and your standup — drafted before you sit down.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
